@@ -1,6 +1,8 @@
 from django.db import models
 from decimal import Decimal
 from django.conf import settings
+from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class Category(models.Model):
@@ -20,6 +22,7 @@ class Product(models.Model):
     description = models.TextField(blank=True, verbose_name="Описание")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Цена")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата добавления")
+    image = models.ImageField(upload_to='products/', null=True, blank=True)
 
     class Meta:
         verbose_name = "Товар"
@@ -76,3 +79,17 @@ class OrderItem(models.Model):
         super().save(*args, **kwargs)
         # update order total
         self.order.recalc_total()
+
+class User(AbstractUser):
+    ROLE_CHOICES = (
+        ('user', 'Обычный пользователь'),
+        ('seller', 'Продавец'),
+        ('manager', 'Руководитель'),
+        ('director', 'Директор'),
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
+
+    # Это поможет нам в будущем не создавать ошибки с миграциями
+    class Meta:
+        verbose_name = 'Пользователь'
+        verbose_name_plural = 'Пользователи'

@@ -1,12 +1,14 @@
-// src/index.js
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css'; // Импортируем стили с директивами
+import './index.css';
 import App from './App';
+import { BrowserRouter } from 'react-router-dom'; // Импортируем роутер
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </React.StrictMode>
 );
