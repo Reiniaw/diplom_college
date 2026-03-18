@@ -40,6 +40,10 @@ class Order(models.Model):
         (STATUS_PLACED, 'Placed'),
         (STATUS_CANCELLED, 'Cancelled'),
     ]
+    address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Адрес доставки")
+    phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Номер телефона")
+    delivery_time = models.CharField(max_length=100, blank=True, null=True, verbose_name="Время доставки")
+    notes = models.TextField(blank=True, null=True, verbose_name="Комментарий")
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_CART)

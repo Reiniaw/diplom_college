@@ -1,68 +1,69 @@
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
-export default function Header() {
+export default function Navbar() {
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
-  // Проверяем, есть ли токен доступа в хранилище
-  const isAuthenticated = !!localStorage.getItem('access'); 
+  const token = localStorage.getItem('access');
 
-  const handleLogout = () => {
-    localStorage.removeItem('access');
-    localStorage.removeItem('refresh');
-    navigate('/'); // Перенаправляем на главную после выхода
-  };
+  useEffect(() => {
+    if (token) {
+      axios.get('http://127.0.0.1:8000/api/me/', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => setUser(res.data))
+      .catch(() => setUser(null));
+    }
+  }, [token]);
+
+  const isStaff = user && ['director', 'manager', 'seller'].includes(user.role);
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950 text-white">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+    <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
+      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         
-        {/* Логотип — теперь это ссылка на главную */}
-        <Link to="/" className="text-xl font-semibold tracking-wide">
-          AV<span className="text-sky-400">Store</span>
+        {/* LOGO */}
+        <Link to="/" className="group">
+          <span className="text-2xl font-black italic tracking-tighter uppercase group-hover:text-sky-500 transition-colors">
+            PRO <span className="text-sky-500 group-hover:text-white transition-colors">LENS</span>
+          </span>
         </Link>
 
-        {/* Навигация */}
-        <nav className="hidden md:flex gap-8 text-md text-slate-300">
-          <Link to="/" className="hover:text-white transition-colors">Каталог</Link>
-          <Link to="/photo" className="hover:text-white transition-colors">Фото</Link>
-          <Link to="/audio" className="hover:text-white transition-colors">Аудио</Link>
-        </nav>
-
-        {/* Правая часть: Корзина + Аккаунт */}
-        <div className="flex items-center gap-6">
-          {/* Корзина (видна всем) */}
-          <Link to="/cart" className="text-slate-300 hover:text-white text-xl relative">
-            🛒
-            {/* Тут позже можно добавить кружочек с количеством товаров */}
-          </Link>
-
-          <div className="h-6 w-[1px] bg-slate-700"></div> {/* Разделитель */}
-
-          {/* Логика входа/профиля */}
-          {isAuthenticated ? (
-            <div className="flex items-center gap-4">
-              <Link 
-                to="/profile" 
-                className="text-sm font-medium text-slate-300 hover:text-sky-400 transition-colors"
-              >
-                Мой профиль
-              </Link>
-              <button 
-                onClick={handleLogout}
-                className="text-sm font-medium text-rose-400 hover:text-rose-300 transition-colors"
-              >
-                Выйти
-              </button>
+        {/* NAVIGATION */}
+        <div className="hidden md:flex items-center gap-10">
+          <Link to="/" className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Каталог</Link>
+          
+          {isStaff && (
+            <div className="flex items-center gap-6 border-x border-white/10 px-6">
+              <Link to="/warehouse" className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-500 hover:text-sky-400">Склад</Link>
+              <Link to="/orders-manager" className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-500 hover:text-sky-400">Заказы</Link>
             </div>
+          )}
+        </div>
+
+        {/* ACTIONS */}
+        <div className="flex items-center gap-6">
+          {token ? (
+            <>
+              <Link to="/cart" className="relative p-2 text-slate-400 hover:text-sky-500 transition-colors">
+                <span className="text-xl">🛒</span>
+                {/* Здесь можно добавить индикатор количества товаров */}
+              </Link>
+              <Link to="/profile" className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/10 transition-all">
+                <span className="text-xs font-bold uppercase tracking-tighter">{user?.username}</span>
+                <div className="w-6 h-6 bg-sky-500 rounded-lg flex items-center justify-center text-[10px] text-slate-950 font-black">
+                  {user?.role[0].toUpperCase()}
+                </div>
+              </Link>
+            </>
           ) : (
-            <Link 
-              to="/login" 
-              className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
-            >
-              Вход / Регистрация
+            <Link to="/login" className="bg-sky-500 text-slate-950 px-6 py-2 rounded-xl font-black uppercase text-xs hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/20">
+              Войти
             </Link>
           )}
         </div>
       </div>
-    </header>
+    </nav>
   );
 }

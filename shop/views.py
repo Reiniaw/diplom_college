@@ -67,8 +67,10 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role in ['director', 'manager'] or user.is_superuser:
+        # Если зашел Директор, Менеджер или Продавец — отдаем все заказы магазина
+        if user.role in ['director', 'manager', 'seller']:
             return Order.objects.all()
+        # Обычный клиент видит только свои
         return Order.objects.filter(user=user)
 
     @action(detail=True, methods=['post'], url_path='add-item')
@@ -106,3 +108,41 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response(OrderSerializer(order).data)
         
         return Response({'detail': 'Неверный статус'}, status=400)
+
+    @action(detail=False, methods=['get'], url_path='current-cart')
+    def current_cart(self, request):
+        """Получить текущую корзину пользователя или создать новую"""
+        order, created = Order.objects.get_or_create(
+            user=request.user, 
+            status=Order.STATUS_CART,
+            defaults={'total_price': 0}
+        )
+        serializer = OrderSerializer(order, context={'request': request})
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='current-cart')
+    def current_cart(self, request):
+        order, created = Order.objects.get_or_create(
+            user=request.user, 
+            status='cart',
+            defaults={'total_price': 0}
+        )
+        serializer = OrderSerializer(order, context={'request': request})
+        return Response(serializer.data)
+
+
+    @action(detail=True, methods=['post'], url_path='checkout')
+    def checkout(self, request, pk=None):
+        order = self.get_object()
+        if order.status != Order.STATUS_CART:
+            return Response({'detail': 'Order already placed'}, status=400)
+        
+        # Сохраняем данные из формы оформления
+        order.address = request.data.get('address')
+        order.phone = request.data.get('phone')
+        order.delivery_time = request.data.get('delivery_time')
+        order.notes = request.data.get('notes')
+        
+        order.status = Order.STATUS_PLACED
+        order.save()
+        return Response(OrderSerializer(order).data)

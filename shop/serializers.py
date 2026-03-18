@@ -9,7 +9,6 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ['id', 'name']
 
-
 class ProductSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
 
@@ -18,36 +17,44 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'price', 'created_at', 'category', 'image']
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    product_name = serializers.ReadOnlyField(source='product.name')
+    product_image = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'quantity', 'price', 'total_price']
-        read_only_fields = ['price', 'total_price']
+        fields = ['id', 'product', 'product_name', 'product_image', 'quantity', 'price', 'total_price']
+
+    def get_product_image(self, obj):
+        if obj.product.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.product.image.url)
+            return obj.product.image.url
+        return None
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
+    user_name = serializers.ReadOnlyField(source='user.username') # Чтобы видеть, кто купил
+
     class Meta:
         model = Order
-        fields = ['id', 'user', 'status', 'created_at', 'updated_at', 'total_price', 'items']
-        read_only_fields = ['user', 'total_price', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'user_name', 'status', 'created_at', 'total_price', 'items', 'address', 'phone', 'delivery_time', 'notes']
 
 class AddItemSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
 
-
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('username', 'password', 'role') # Позволяем указывать роль при создании
+        fields = ('username', 'password', 'role')
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data['username'],
             password=validated_data['password'],
-            role=validated_data.get('role', 'user') # Сохраняем роль
+            role=validated_data.get('role', 'user')
         )
         return user
     
