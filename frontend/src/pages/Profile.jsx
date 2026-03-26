@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Добавили useNavigate
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -9,25 +9,29 @@ export default function Profile() {
   const [newEmployee, setNewEmployee] = useState({ username: '', password: '', role: 'seller' });
   const [myOrders, setMyOrders] = useState([]);
 
+  const navigate = useNavigate(); // Инициализация навигации
   const token = localStorage.getItem('access');
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
-    fetchProfile();
+    // Мгновенная проверка наличия токена при входе в компонент
+    if (!token) {
+      navigate('/login');
+    } else {
+      fetchProfile();
+    }
   }, []);
 
   useEffect(() => {
     if (user) {
-      // 1. Загружаем заказы и фильтруем ТОЛЬКО СВОИ (даже для админов)
+      // Загружаем заказы и фильтруем ТОЛЬКО СВОИ
       axios.get('http://127.0.0.1:8000/api/orders/', { headers })
         .then(res => {
-          // Показываем только оформленные заказы, принадлежащие текущему пользователю
           const personal = res.data.filter(o => o.user === user.id && o.status !== 'cart');
           setMyOrders(personal);
         })
         .catch(err => console.error("Ошибка загрузки истории", err));
 
-      // 2. Если Директор — загружаем персонал
       if (user.role === 'director') {
         fetchEmployees();
       }
@@ -37,7 +41,11 @@ export default function Profile() {
   const fetchProfile = () => {
     axios.get('http://127.0.0.1:8000/api/me/', { headers })
       .then(res => setUser(res.data))
-      .catch(err => console.error("Ошибка авторизации"));
+      .catch(err => {
+        console.error("Ошибка авторизации или сессия истекла");
+        localStorage.clear(); // Очищаем протухший токен
+        navigate('/login');   // Выбрасываем на страницу логина
+      });
   };
 
   const fetchEmployees = () => {
@@ -79,7 +87,11 @@ export default function Profile() {
     }
   };
 
-  if (!user) return <div className="p-20 text-white text-center font-mono">Синхронизация профиля...</div>;
+  if (!user) return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-mono uppercase tracking-[0.2em] animate-pulse">
+      Проверка протокола доступа...
+    </div>
+  );
 
   const isStaff = ['director', 'manager', 'seller'].includes(user.role);
 
@@ -94,14 +106,14 @@ export default function Profile() {
             </p>
           </div>
           <button 
-            onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
+            onClick={() => { localStorage.clear(); navigate('/login'); }}
             className="text-slate-500 hover:text-rose-500 text-xs font-black transition-colors uppercase tracking-[0.2em]"
           >
             Завершить сеанс →
           </button>
         </header>
 
-        {/* --- ПАНЕЛЬ HR (ВОССТАНОВЛЕНА ДЛЯ ДИРЕКТОРА) --- */}
+        {/* --- ПАНЕЛЬ HR --- */}
         {user.role === 'director' && (
           <section className="mb-16">
             <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden">
@@ -171,15 +183,14 @@ export default function Profile() {
           </section>
         )}
 
-        {/* --- ПАНЕЛЬ БИЗНЕСА (ДИЗАЙН ВОССТАНОВЛЕН) --- */}
+        {/* --- ПАНЕЛЬ БИЗНЕСА --- */}
         {isStaff && (
           <section className="mb-16">
             <h2 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-8 flex items-center gap-4">
               <span className="w-12 h-px bg-slate-800"></span> 
-              Бизнес-инструменты 
+              Операционное управление 
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              
               <div className="p-10 bg-slate-900 border border-slate-800 rounded-[3rem] hover:border-sky-500/50 transition-all group relative overflow-hidden shadow-2xl">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                   <span className="text-8xl italic font-black">BOX</span>
@@ -207,22 +218,19 @@ export default function Profile() {
                   Все продажи <span>→</span>
                 </Link>
               </div>
-
             </div>
           </section>
         )}
         
-        {/* --- ПОДРОБНАЯ ЛИЧНАЯ ИСТОРИЯ ПОКУПОК --- */}
+        {/* --- ЛИЧНАЯ ИСТОРИЯ --- */}
         <section className="space-y-8">
             <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4">
                 <span className="w-12 h-1 bg-sky-500"></span>
                 Личная история заказов
             </h2>
-            
             <div className="grid gap-6">
                 {myOrders.map(order => (
                     <div key={order.id} className="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-xl">
-                        {/* Шапка заказа */}
                         <div className="p-6 bg-slate-800/30 flex justify-between items-center border-b border-slate-800">
                             <div>
                                 <span className="text-sky-500 font-mono font-bold uppercase tracking-tighter">ЗАКАЗ #{order.id}</span>
@@ -234,8 +242,6 @@ export default function Profile() {
                                 {order.status === 'placed' ? 'Оформлен' : 'Обработан'}
                             </span>
                         </div>
-
-                        {/* Список товаров в заказе */}
                         <div className="p-6 space-y-4">
                             {order.items.map(item => (
                                 <div key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-800/50 pb-4 last:border-0 last:pb-0">
@@ -256,13 +262,11 @@ export default function Profile() {
                                 </div>
                             ))}
                         </div>
-
-                        {/* Инфо о доставке и Итог */}
                         <div className="p-8 bg-slate-950/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                             <div className="text-[10px] text-slate-500 space-y-1 italic uppercase tracking-wider">
                                 <p>📍 {order.address || 'Адрес не указан'}</p>
                                 <p>📞 {order.phone || 'Контакт не указан'}</p>
-                                <p>💬 {order.notes || 'Комментарий не укзан'}</p>
+                                <p>💬 {order.notes || 'Комментарий отсутствует'}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-widest">Итого к оплате</p>
@@ -271,7 +275,6 @@ export default function Profile() {
                         </div>
                     </div>
                 ))}
-                
                 {myOrders.length === 0 && (
                     <div className="bg-slate-900/50 p-20 rounded-[3rem] border border-slate-800 border-dashed text-center">
                         <p className="text-slate-500 italic">У вас пока нет оформленных покупок.</p>
