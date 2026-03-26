@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getHeaders } from '../utils/helpers';
 
 export default function Navbar() {
   const [user, setUser] = useState(null);
@@ -10,7 +11,7 @@ export default function Navbar() {
   useEffect(() => {
     if (token) {
       axios.get('http://127.0.0.1:8000/api/me/', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getHeaders()
       })
       .then(res => setUser(res.data))
       .catch(() => setUser(null));

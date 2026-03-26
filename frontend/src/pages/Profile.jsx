@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom'; // Добавили useNavigate
+import { Link, useNavigate } from 'react-router-dom';
+import { getHeaders } from '../utils/helpers';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -8,13 +9,17 @@ export default function Profile() {
   const [showHireForm, setShowHireForm] = useState(false);
   const [newEmployee, setNewEmployee] = useState({ username: '', password: '', role: 'seller' });
   const [myOrders, setMyOrders] = useState([]);
+  
+  // --- ФИЛЬТР ДАТ И СТАТИСТИКА ---
+  const [stats, setStats] = useState(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
-  const navigate = useNavigate(); // Инициализация навигации
+  const navigate = useNavigate();
   const token = localStorage.getItem('access');
-  const headers = { Authorization: `Bearer ${token}` };
 
+  // 1. Первичная загрузка профиля
   useEffect(() => {
-    // Мгновенная проверка наличия токена при входе в компонент
     if (!token) {
       navigate('/login');
     } else {
@@ -22,69 +27,91 @@ export default function Profile() {
     }
   }, []);
 
+  // 2. Загрузка статистики (только при первом получении данных пользователя)
   useEffect(() => {
+    if (user?.role === 'director') {
+      fetchStats(); // Загружаем начальные данные без фильтров
+      fetchEmployees();
+    }
+    
     if (user) {
-      // Загружаем заказы и фильтруем ТОЛЬКО СВОИ
-      axios.get('http://127.0.0.1:8000/api/orders/', { headers })
+      // Личная история заказов
+      axios.get('http://127.0.0.1:8000/api/orders/', { headers: getHeaders() })
         .then(res => {
           const personal = res.data.filter(o => o.user === user.id && o.status !== 'cart');
           setMyOrders(personal);
         })
         .catch(err => console.error("Ошибка загрузки истории", err));
-
-      if (user.role === 'director') {
-        fetchEmployees();
-      }
     }
   }, [user]);
 
   const fetchProfile = () => {
-    axios.get('http://127.0.0.1:8000/api/me/', { headers })
+    axios.get('http://127.0.0.1:8000/api/me/', { headers: getHeaders() })
       .then(res => setUser(res.data))
       .catch(err => {
-        console.error("Ошибка авторизации или сессия истекла");
-        localStorage.clear(); // Очищаем протухший токен
-        navigate('/login');   // Выбрасываем на страницу логина
+        localStorage.clear();
+        navigate('/login');
       });
   };
 
+  // ОСНОВНАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ СТАТИСТИКИ
+  const fetchStats = (dFrom = dateFrom, dTo = dateTo) => {
+    let url = 'http://127.0.0.1:8000/api/director/stats/';
+    const params = new URLSearchParams();
+    if (dFrom) params.append('date_from', dFrom);
+    if (dTo) params.append('date_to', dTo);
+    
+    const queryString = params.toString();
+    if (queryString) url += `?${queryString}`;
+
+    axios.get(url, { headers: getHeaders() })
+      .then(res => setStats(res.data))
+      .catch(err => console.error("Ошибка аналитики", err));
+  };
+
+  // Функция для кнопки "Применить"
+  const handleApplyFilters = () => {
+    fetchStats();
+  };
+
+  // Функция для сброса фильтров
+  const handleResetFilters = () => {
+    setDateFrom('');
+    setDateTo('');
+    fetchStats('', ''); // Передаем пустые строки сразу, не дожидаясь обновления стейта
+  };
+
   const fetchEmployees = () => {
-    axios.get('http://127.0.0.1:8000/api/users/', { headers })
+    axios.get('http://127.0.0.1:8000/api/users/', { headers: getHeaders() })
       .then(res => setEmployees(res.data))
-      .catch(err => console.error("Ошибка загрузки списка штата"));
+      .catch(err => console.error("Ошибка штата"));
   };
 
   const handleHire = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://127.0.0.1:8000/api/register/', newEmployee);
-      alert(`Сотрудник ${newEmployee.username} успешно нанят!`);
+      await axios.post('http://127.0.0.1:8000/api/register/', newEmployee, { headers: getHeaders() });
+      alert(`Сотрудник ${newEmployee.username} нанят!`);
       setNewEmployee({ username: '', password: '', role: 'seller' });
       setShowHireForm(false);
       fetchEmployees();
-    } catch (err) {
-      alert("Ошибка при создании сотрудника");
-    }
+    } catch (err) { alert("Ошибка при создании"); }
   };
 
   const handleFire = async (id, username) => {
-    if (window.confirm(`Вы уверены, что хотите уволить сотрудника ${username}?`)) {
+    if (window.confirm(`Уволить ${username}?`)) {
       try {
-        await axios.delete(`http://127.0.0.1:8000/api/users/${id}/`, { headers });
+        await axios.delete(`http://127.0.0.1:8000/api/users/${id}/`, { headers: getHeaders() });
         fetchEmployees();
-      } catch (err) {
-        alert("Ошибка при удалении");
-      }
+      } catch (err) { alert("Ошибка удаления"); }
     }
   };
 
   const handleChangeRole = async (id, newRole) => {
     try {
-      await axios.patch(`http://127.0.0.1:8000/api/users/${id}/`, { role: newRole }, { headers });
+      await axios.patch(`http://127.0.0.1:8000/api/users/${id}/`, { role: newRole }, { headers: getHeaders() });
       fetchEmployees();
-    } catch (err) {
-      alert("Ошибка при смене роли");
-    }
+    } catch (err) { alert("Ошибка роли"); }
   };
 
   if (!user) return (
@@ -112,6 +139,115 @@ export default function Profile() {
             Завершить сеанс →
           </button>
         </header>
+
+        {/* --- ПАНЕЛЬ ДИРЕКТОРА С ФИЛЬТРОМ ДАТ --- */}
+        {user.role === 'director' && (
+          <section className="mb-16">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
+              <h2 className="text-[10px] font-black text-sky-500 uppercase tracking-[0.4em] flex items-center gap-4">
+                <span className="w-12 h-px bg-sky-500/30"></span> 
+                Финансовый мониторинг
+              </h2>
+              
+              <div className="flex items-center gap-3 bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-xl">
+                <input 
+                  type="date" 
+                  className="bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 outline-none focus:border-sky-500 transition-colors"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+                <span className="text-slate-600 font-bold">—</span>
+                <input 
+                  type="date" 
+                  className="bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 outline-none focus:border-sky-500 transition-colors"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+                
+                {/* КНОПКА ПРИМЕНИТЬ */}
+                <button 
+                  onClick={handleApplyFilters}
+                  className="bg-sky-500 hover:bg-sky-400 text-slate-950 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-sky-500/20 active:scale-95"
+                >
+                  Применить
+                </button>
+
+                {(dateFrom || dateTo) && (
+                  <button 
+                    onClick={handleResetFilters}
+                    className="text-rose-500 hover:text-rose-400 text-[10px] font-black uppercase px-2 transition-colors"
+                  >
+                    Сброс
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {stats && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
+                <div className="p-10 bg-slate-900 border border-slate-800 rounded-[3rem] shadow-2xl relative overflow-hidden group">
+                  <div className="absolute -right-4 -top-4 text-6xl opacity-5 italic font-black">CASH</div>
+                  <p className="text-slate-500 text-[10px] uppercase font-black mb-2">Общая выручка</p>
+                  <p className="text-5xl font-black italic text-white">
+                    {(stats.total_sales || 0).toLocaleString()} <span className="text-sky-500 text-2xl font-normal not-italic">₸</span>
+                  </p>
+                </div>
+
+                <div className="p-10 bg-slate-900 border border-slate-800 rounded-[3rem] shadow-2xl relative overflow-hidden group">
+                  <div className="absolute -right-4 -top-4 text-6xl opacity-5 italic font-black">ORDERS</div>
+                  <p className="text-slate-500 text-[10px] uppercase font-black mb-2">Заказов за период</p>
+                  <p className="text-5xl font-black italic text-white">{stats.orders_count || stats.orders_today || 0}</p>
+                </div>
+
+                <div className="p-10 bg-slate-900 border border-slate-800 rounded-[3rem] shadow-2xl">
+                  <h3 className="text-xs font-black uppercase text-sky-500 mb-6">Бестселлеры</h3>
+                  <div className="space-y-4">
+                    {(stats.top_products || []).slice(0, 3).map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-slate-300 truncate pr-2">{item.product__name}</span>
+                        <span className="text-xs font-mono bg-slate-800 px-2 py-1 rounded text-sky-400">{item.total_qty} шт.</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="lg:col-span-3 p-10 bg-slate-900 border border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden">
+                  <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-10">Отчет доходности</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-slate-500 text-[10px] uppercase tracking-[0.3em] border-b border-slate-800">
+                          <th className="pb-6">Дата</th>
+                          <th className="pb-6 text-center">Сделок</th>
+                          <th className="pb-6">Товары</th>
+                          <th className="pb-6 text-right">Выручка</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {(stats.daily_sales || []).map((day, i) => (
+                          <tr key={i} className="hover:bg-slate-800/20 transition-colors">
+                            <td className="py-6 font-mono text-sky-500 text-sm">{day.date}</td>
+                            <td className="py-6 text-center font-bold text-slate-400">{day.count}</td>
+                            <td className="py-6">
+                              <div className="flex flex-wrap gap-2">
+                                {day.items?.map((name, idx) => (
+                                  <span key={idx} className="text-[9px] bg-slate-800 text-slate-400 px-2 py-1 rounded uppercase border border-slate-700">{name}</span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-6 text-right font-black italic text-xl">
+                              {day.total.toLocaleString()} <span className="text-xs not-italic text-sky-500">₸</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* --- ПАНЕЛЬ HR --- */}
         {user.role === 'director' && (
@@ -144,11 +280,11 @@ export default function Profile() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="text-slate-500 text-[10px] uppercase tracking-widest border-b border-slate-800 bg-slate-900/30">
+                    <tr className="text-slate-500 text-[10px] uppercase tracking-widest border-b border-slate-800">
                       <th className="p-6">ID</th>
                       <th className="p-6">Сотрудник</th>
                       <th className="p-6">Должность</th>
-                      <th className="p-6 text-right">Статус</th>
+                      <th className="p-6 text-right">Действие</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
@@ -187,8 +323,7 @@ export default function Profile() {
         {isStaff && (
           <section className="mb-16">
             <h2 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mb-8 flex items-center gap-4">
-              <span className="w-12 h-px bg-slate-800"></span> 
-              Операционное управление 
+              <span className="w-12 h-px bg-slate-800"></span> Операционное управление 
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="p-10 bg-slate-900 border border-slate-800 rounded-[3rem] hover:border-sky-500/50 transition-all group relative overflow-hidden shadow-2xl">
@@ -197,13 +332,9 @@ export default function Profile() {
                 </div>
                 <h3 className="text-2xl font-bold mb-3 uppercase italic tracking-tighter">Складской учет</h3>
                 <p className="text-slate-400 text-sm mb-10 max-w-xs leading-relaxed">
-                  {user.role === 'seller' 
-                    ? 'Мониторинг остатков техники и изменение цен.' 
-                    : 'Добавление товаров, управление категориями и инвентаризация.'}
+                  {user.role === 'seller' ? 'Мониторинг остатков и изменение цен.' : 'Управление товарами и инвентаризация.'}
                 </p>
-                <Link to="/warehouse" className="inline-flex items-center gap-3 bg-white/5 group-hover:bg-sky-500 group-hover:text-black px-10 py-4 rounded-2xl font-black transition-all uppercase text-xs italic tracking-widest">
-                  Открыть Склад <span>→</span>
-                </Link>
+                <Link to="/warehouse" className="bg-white/5 group-hover:bg-sky-500 group-hover:text-black px-10 py-4 rounded-2xl font-black transition-all uppercase text-xs">Открыть Склад →</Link>
               </div>
 
               <div className="p-10 bg-slate-900 border border-slate-800 rounded-[3rem] hover:border-sky-500/50 transition-all group relative overflow-hidden shadow-2xl">
@@ -211,12 +342,8 @@ export default function Profile() {
                   <span className="text-8xl italic font-black">CRM</span>
                 </div>
                 <h3 className="text-2xl font-bold mb-3 uppercase italic tracking-tighter">Менеджер Заказов</h3>
-                <p className="text-slate-400 text-sm mb-10 max-w-xs leading-relaxed">
-                  Контроль всех входящих заказов. Управление статусами доставки и проверка клиентских данных.
-                </p>
-                <Link to="/orders-manager" className="inline-flex items-center gap-3 bg-white/5 group-hover:bg-sky-500 group-hover:text-black px-10 py-4 rounded-2xl font-black transition-all uppercase text-xs italic tracking-widest">
-                  Все продажи <span>→</span>
-                </Link>
+                <p className="text-slate-400 text-sm mb-10 max-w-xs leading-relaxed">Контроль входящих заказов, статусов доставки и проверка данных.</p>
+                <Link to="/orders-manager" className="bg-white/5 group-hover:bg-sky-500 group-hover:text-black px-10 py-4 rounded-2xl font-black transition-all uppercase text-xs">Все продажи →</Link>
               </div>
             </div>
           </section>
@@ -225,8 +352,7 @@ export default function Profile() {
         {/* --- ЛИЧНАЯ ИСТОРИЯ --- */}
         <section className="space-y-8">
             <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4">
-                <span className="w-12 h-1 bg-sky-500"></span>
-                Личная история заказов
+                <span className="w-12 h-1 bg-sky-500"></span> Личная история заказов
             </h2>
             <div className="grid gap-6">
                 {myOrders.map(order => (
@@ -234,9 +360,7 @@ export default function Profile() {
                         <div className="p-6 bg-slate-800/30 flex justify-between items-center border-b border-slate-800">
                             <div>
                                 <span className="text-sky-500 font-mono font-bold uppercase tracking-tighter">ЗАКАЗ #{order.id}</span>
-                                <p className="text-slate-500 text-[10px] uppercase tracking-widest mt-1">
-                                    {new Date(order.created_at).toLocaleString()}
-                                </p>
+                                <p className="text-slate-500 text-[10px] mt-1 uppercase">{new Date(order.created_at).toLocaleString()}</p>
                             </div>
                             <span className="px-4 py-1 bg-slate-800 rounded-full text-[10px] font-black uppercase text-slate-400 border border-slate-700">
                                 {order.status === 'placed' ? 'Оформлен' : 'Обработан'}
@@ -246,12 +370,8 @@ export default function Profile() {
                             {order.items.map(item => (
                                 <div key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-800/50 pb-4 last:border-0 last:pb-0">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-14 h-14 bg-slate-800 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-700">
-                                            {item.product_image ? (
-                                                <img src={item.product_image} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-slate-700">📸</div>
-                                            )}
+                                        <div className="w-14 h-14 bg-slate-800 rounded-2xl overflow-hidden border border-slate-700 flex-shrink-0">
+                                            {item.product_image ? <img src={item.product_image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-700">📸</div>}
                                         </div>
                                         <div>
                                             <p className="font-bold text-sm tracking-tight">{item.product_name}</p>
@@ -262,15 +382,14 @@ export default function Profile() {
                                 </div>
                             ))}
                         </div>
-                        <div className="p-8 bg-slate-950/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                            <div className="text-[10px] text-slate-500 space-y-1 italic uppercase tracking-wider">
-                                <p>📍 {order.address || 'Адрес не указан'}</p>
-                                <p>📞 {order.phone || 'Контакт не указан'}</p>
-                                <p>💬 {order.notes || 'Комментарий отсутствует'}</p>
+                        <div className="p-8 bg-slate-950/50 flex flex-col md:flex-row justify-between items-center gap-6">
+                            <div className="text-[10px] text-slate-500 italic uppercase">
+                                <p>📍 {order.address || 'Нет адреса'}</p>
+                                <p>📞 {order.phone || 'Нет контакта'}</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-slate-500 text-[10px] uppercase font-bold mb-1 tracking-widest">Итого к оплате</p>
-                                <p className="text-3xl font-black text-white italic">{order.total_price} ₸</p>
+                                <p className="text-slate-500 text-[10px] font-bold mb-1">Итого к оплате</p>
+                                <p className="text-3xl font-black italic">{order.total_price} ₸</p>
                             </div>
                         </div>
                     </div>

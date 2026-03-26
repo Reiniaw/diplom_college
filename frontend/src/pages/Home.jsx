@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { getHeaders, getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryTechFields, setCategoryTechFields] = useState({}); // Кэш tech_fields по категориям
+  const [selectedImageIndexes, setSelectedImageIndexes] = useState({}); // productId -> imageIndex
 
   const token = localStorage.getItem('access');
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
   useEffect(() => {
     fetchData();
@@ -23,6 +25,13 @@ export default function Home() {
       ]);
       setProducts(p.data);
       setCategories(c.data);
+      
+      // Загружаем tech_fields для каждой категории
+      const techFieldsMap = {};
+      for (let category of c.data) {
+        techFieldsMap[category.id] = category.tech_fields || [];
+      }
+      setCategoryTechFields(techFieldsMap);
     } catch (err) {
       console.error("Ошибка загрузки витрины", err);
     }
@@ -36,14 +45,12 @@ export default function Home() {
     }
 
     try {
-      // 1. Получаем текущую активную корзину пользователя
-      const cartRes = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers });
+      const cartRes = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers: getHeaders() });
       const cartId = cartRes.data.id;
 
-      // 2. Добавляем товар в эту корзину (количество по умолчанию 1)
       await axios.post(`http://127.0.0.1:8000/api/orders/${cartId}/add-item/`, 
         { product_id: productId, quantity: 1 },
-        { headers }
+        { headers: getHeaders() }
       );
 
       alert("Товар успешно добавлен в корзину! 📸");
@@ -51,6 +58,25 @@ export default function Home() {
       console.error("Ошибка при добавлении в корзину:", err);
       alert("Не удалось добавить товар. Проверьте соединение с сервером.");
     }
+  };
+
+  // --- ЛИСТАНИЕ ФОТОГРАФИЙ ---
+  const nextImage = (e, productId, productImages) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (productImages.length === 0) return;
+    const currentIndex = selectedImageIndexes[productId] || 0;
+    const nextIndex = (currentIndex + 1) % productImages.length;
+    setSelectedImageIndexes(prev => ({...prev, [productId]: nextIndex}));
+  };
+
+  const prevImage = (e, productId, productImages) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (productImages.length === 0) return;
+    const currentIndex = selectedImageIndexes[productId] || 0;
+    const prevIndex = (currentIndex - 1 + productImages.length) % productImages.length;
+    setSelectedImageIndexes(prev => ({...prev, [productId]: prevIndex}));
   };
 
   // Комбинированный фильтр: Категория + Поиск
@@ -63,24 +89,30 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       {/* 1. БАННЕР (HERO SECTION) */}
-      <section className="relative h-[500px] flex items-center justify-center overflow-hidden border-b border-slate-900">
-        <div className="absolute inset-0 bg-gradient-to-tr from-sky-900/20 via-slate-950 to-slate-950 z-0"></div>
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-sky-500/10 rounded-full blur-[120px]"></div>
+      <section className="relative h-[550px] flex items-center justify-center overflow-hidden border-b border-slate-900/50">
+        {/* Фоновые глобусы */}
+        <div className="absolute inset-0 bg-gradient-to-br from-sky-900/10 via-slate-950 to-slate-950 z-0"></div>
+        <div className="absolute -top-32 -left-32 w-[500px] h-[500px] bg-sky-500/5 rounded-full blur-[150px] animate-pulse"></div>
+        <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-sky-500/5 rounded-full blur-[150px] animate-pulse" style={{animationDelay: '2s'}}></div>
         
-        <div className="relative z-10 text-center px-4">
-          <h1 className="text-7xl md:text-8xl font-black italic uppercase tracking-tighter mb-4">
-            Pro <span className="text-sky-500">Lens</span>
+        <div className="relative z-10 text-center px-6">
+          <div className="mb-4 inline-block">
+            <span className="text-sky-500 text-sm font-black uppercase tracking-[0.2em] bg-sky-500/20 px-6 py-2 rounded-full border border-sky-500/30">✨ Добро пожаловать в Pro Lens</span>
+          </div>
+          
+          <h1 className="text-7xl md:text-8xl font-black italic uppercase tracking-tighter mb-6">
+            ЗАПЕЧАТЛЕЙ <br/><span className="text-sky-500">идеальный кадр</span>
           </h1>
-          <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto font-light leading-relaxed">
-            Запечатлейте моменты с помощью лучшей техники. <br />
-            От классических зеркалок до современных беззеркальных систем.
+          <p className="text-slate-400 text-lg md:text-xl max-w-3xl mx-auto font-light leading-relaxed mb-12">
+            От профессиональных камер до инновационных аксессуаров. <br />
+            Всё что нужно для создания шедевров
           </p>
-          <div className="mt-10 flex gap-4 justify-center">
-             <button className="bg-sky-500 text-slate-950 px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/20">
-               Смотреть новинки
+          <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center items-center">
+             <button className="bg-sky-500 text-slate-950 px-10 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/30 hover:shadow-sky-500/50 text-lg active:scale-95">
+               Смотреть каталог ↓
              </button>
-             <Link to="/profile" className="border border-slate-800 bg-slate-900/50 backdrop-blur-md px-8 py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all">
-               Мой кабинет
+             <Link to="/profile" className="border border-sky-500/40 bg-sky-500/5 backdrop-blur-md px-10 py-4 rounded-2xl font-bold hover:bg-sky-500/10 hover:border-sky-500 transition-all text-lg">
+               Личный кабинет
              </Link>
           </div>
         </div>
@@ -123,44 +155,97 @@ export default function Home() {
         </div>
 
         {/* 3. СЕТКА ТОВАРОВ */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
-          {filteredProducts.map(product => (
-            <div key={product.id} className="group bg-slate-900/50 border border-slate-900 rounded-[2.5rem] overflow-hidden hover:border-sky-500/30 transition-all flex flex-col">
-              <div className="h-72 bg-slate-900 relative overflow-hidden">
-                {product.image ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredProducts.map(product => {
+            const techFields = categoryTechFields[product.category] || [];
+            const productImages = getProductImagesUrls(product) || [];
+            const currentImageIndex = selectedImageIndexes[product.id] || 0;
+            const currentImage = productImages.length > 0 ? productImages[currentImageIndex] : null;
+            
+            return (
+            <div key={product.id} className="group relative bg-gradient-to-b from-slate-900/60 to-slate-950 border border-slate-800 rounded-[2rem] overflow-hidden hover:border-sky-500/50 transition-all duration-300 flex flex-col shadow-lg hover:shadow-sky-500/10">
+              
+              {/* Декоративный градиент при наведении */}
+              <div className="absolute inset-0 bg-gradient-to-br from-sky-500/0 via-transparent to-sky-500/0 group-hover:from-sky-500/5 group-hover:to-sky-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              
+              {/* ГАЛЕРЕЯ ФОТОГРАФИЙ */}
+              <Link to={`/product/${product.id}`} className="h-64 bg-slate-900 relative overflow-hidden block group">
+                {currentImage ? (
                   <img 
-                    src={product.image.startsWith('http') ? product.image : `http://127.0.0.1:8000${product.image}`} 
+                    src={currentImage} 
                     alt={product.name} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80 group-hover:opacity-100" 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-70 group-hover:opacity-100" 
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-800 text-4xl font-black">📸</div>
+                  <div className="w-full h-full flex items-center justify-center text-slate-700 text-5xl font-black">📸</div>
                 )}
-                <div className="absolute bottom-4 left-4">
-                  <span className="bg-slate-950/90 backdrop-blur-md text-sky-400 px-4 py-2 rounded-xl font-mono font-black text-lg shadow-xl">
-                    {product.price} ₸
+                
+                {/* Ценник */}
+                <div className="absolute top-4 right-4">
+                  <span className="bg-sky-500 text-slate-950 px-5 py-2 rounded-xl font-black text-lg shadow-xl font-mono">
+                    {product.price}₸
                   </span>
                 </div>
-              </div>
+                
+                {/* Категория */}
+                <div className="absolute top-4 left-4">
+                  <span className="bg-slate-950/80 backdrop-blur-md text-slate-400 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
+                    {categories.find(c => c.id === product.category)?.name || 'N/A'}
+                  </span>
+                </div>
 
-              <div className="p-8 flex flex-col flex-1">
-                <h3 className="text-xl font-bold mb-3 tracking-tight group-hover:text-sky-400 transition-colors">
-                  {product.name}
-                </h3>
-                <p className="text-slate-500 text-sm leading-relaxed mb-8 line-clamp-2">
-                  {product.description || "Профессиональное решение для ваших лучших кадров."}
+                {/* КНОПКИ ЛИСТАНИЯ ФОТОГРАФИЙ */}
+                {productImages.length > 1 && (
+                  <>
+                    {/* Стрелка влево */}
+                    <button
+                      onClick={(e) => prevImage(e, product.id, productImages)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 bg-slate-950/70 hover:bg-slate-950 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 z-20"
+                    >
+                      ‹
+                    </button>
+                    
+                    {/* Стрелка вправо */}
+                    <button
+                      onClick={(e) => nextImage(e, product.id, productImages)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 bg-slate-950/70 hover:bg-slate-950 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 z-20"
+                    >
+                      ›
+                    </button>
+
+                    {/* Индикатор изображений */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/70 backdrop-blur-md text-slate-300 px-3 py-1 rounded-full text-xs font-bold">
+                      {currentImageIndex + 1} / {productImages.length}
+                    </div>
+                  </>
+                )}
+              </Link>
+
+              <div className="p-6 flex flex-col flex-1 relative z-10">
+                {/* Заголовок */}
+                <Link to={`/product/${product.id}`}>
+                  <h3 className="text-lg font-black mb-2 tracking-tight group-hover:text-sky-400 transition-colors line-clamp-2">
+                    {product.name}
+                  </h3>
+                </Link>
+                
+                {/* Описание */}
+                <p className="text-slate-500 text-xs leading-relaxed mb-4 line-clamp-2 flex-1">
+                  {product.description || "Профессиональная техника для вашего творчества"}
                 </p>
                 
-                {/* КНОПКА С ФУНКЦИОНАЛОМ */}
+                
+                {/* КНОПКА КУПИТЬ */}
                 <button 
                   onClick={() => addToCart(product.id)}
-                  className="w-full bg-white text-black font-black py-4 rounded-2xl hover:bg-sky-500 transition-all uppercase italic tracking-tighter active:scale-95"
+                  className="w-full bg-white text-slate-950 font-black py-3 rounded-xl hover:bg-sky-500 transition-all uppercase italic text-sm tracking-tight active:scale-95 shadow-lg hover:shadow-sky-500/30 duration-200"
                 >
                   Купить
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {filteredProducts.length === 0 && (

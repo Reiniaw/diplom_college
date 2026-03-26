@@ -3,13 +3,17 @@ from rest_framework import viewsets, generics, status, parsers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.utils import timezone
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
+from django.db.models import Sum, Count
+from django.db.models.functions import TruncDate
+from django.db.models import F, JSONField
 
-from .models import Category, Product, Order, OrderItem
+from .models import Category, Product, Order, OrderItem, TechField, ProductImage
 from .serializers import (
     CategorySerializer, ProductSerializer, 
     OrderSerializer, AddItemSerializer, 
-    UserSerializer, RegisterSerializer
+    UserSerializer, RegisterSerializer, TechFieldSerializer
 )
 
 User = get_user_model()
@@ -19,9 +23,112 @@ class IsDirector(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'director'
 
+class DirectorUserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer 
+    permission_classes = [IsDirector]
+
+class DirectorStatsView(APIView):
+    permission_classes = [IsDirector]
+
+    def get(self, request):
+        # Берем только оформленные заказы (не корзины)
+        placed_orders = Order.objects.filter(status=Order.STATUS_PLACED)
+        
+        # Общая выручка
+        total_sales = placed_orders.aggregate(Sum('total_price'))['total_price__sum'] or 0
+        
+        # Заказы за сегодня
+        today = timezone.now().date()
+        orders_today = placed_orders.filter(created_at__date=today).count()
+
+        # Топ-5 самых продаваемых товаров
+        top_products = OrderItem.objects.filter(order__status=Order.STATUS_PLACED) \
+            .values(name=F('product__name')) \
+            .annotate(total_qty=Sum('quantity')) \
+            .order_by('-total_qty')[:5]
+
+        return Response({
+            "total_sales": float(total_sales),
+            "orders_today": orders_today,
+            "top_products": list(top_products)
+        })
+
+class DirectorStatsView(APIView):
+    permission_classes = [IsDirector]
+
+    def get(self, request):
+        # 1. Получаем даты из параметров запроса (?date_from=...&date_to=...)
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+
+        # 2. Базовый фильтр: только оформленные заказы
+        placed_orders = Order.objects.filter(status=Order.STATUS_PLACED)
+        order_items = OrderItem.objects.filter(order__status=Order.STATUS_PLACED)
+
+        # 3. Применяем фильтрацию по датам, если они переданы
+        if date_from:
+            placed_orders = placed_orders.filter(created_at__date__gte=date_from)
+            order_items = order_items.filter(order__created_at__date__gte=date_from)
+        if date_to:
+            placed_orders = placed_orders.filter(created_at__date__lte=date_to)
+            order_items = order_items.filter(order__created_at__date__lte=date_to)
+
+        # 4. Общая выручка ЗА ПЕРИОД
+        total_sales = placed_orders.aggregate(Sum('total_price'))['total_price__sum'] or 0
+        
+        # 5. Количество заказов ЗА ПЕРИОД (вместо заказов за сегодня)
+        orders_count = placed_orders.count()
+
+        # 6. Топ-5 товаров ЗА ПЕРИОД
+        top_products = order_items.values(product__name=F('product__name')) \
+            .annotate(total_qty=Sum('quantity')) \
+            .order_by('-total_qty')[:5]
+
+        # 7. Статистика по дням для таблицы
+        daily_stats = placed_orders.annotate(date=TruncDate('created_at')) \
+            .values('date') \
+            .annotate(
+                total=Sum('total_price'),
+                count=Count('id')
+            ) \
+            .order_by('-date')
+
+        # Формируем список для фронтенда
+        daily_sales_list = []
+        for entry in daily_stats:
+            # Получаем товары именно для этого дня
+            day_items = OrderItem.objects.filter(
+                order__status=Order.STATUS_PLACED,
+                order__created_at__date=entry['date']
+            ).values_list('product__name', flat=True).distinct()[:3]
+
+            daily_sales_list.append({
+                "date": entry['date'].strftime('%d.%m.%Y'),
+                "total": float(entry['total']),
+                "count": entry['count'],
+                "items": list(day_items)
+            })
+
+        return Response({
+            "total_sales": float(total_sales),
+            "orders_count": orders_count, # Поменяли название, чтобы было логичнее
+            "top_products": list(top_products),
+            "daily_sales": daily_sales_list
+        })
 class IsStaffOrDirector(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['manager', 'director']
+
+# --- ТЕХНИЧЕСКИЕ ПОЛЯ ---
+class TechFieldViewSet(viewsets.ModelViewSet):
+    queryset = TechField.objects.all()
+    serializer_class = TechFieldSerializer
+    
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsStaffOrDirector()]
+        return [AllowAny()]
 
 # --- ТОВАРЫ И КАТЕГОРИИ ---
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -42,6 +149,47 @@ class ProductViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsStaffOrDirector()]
         return [AllowAny()]
+    
+    def create(self, request, *args, **kwargs):
+        # Обработка множественных изображений при создании
+        images = request.FILES.getlist('images', [])
+        
+        # Извлекаем images из request.data для serializer
+        data = request.data.copy()
+        if 'images' in data:
+            del data['images']
+        
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+        
+        # Сохраняем изображения
+        for image_file in images:
+            ProductImage.objects.create(product=product, image=image_file)
+        
+        return Response(ProductSerializer(product).data, status=201)
+    
+    def update(self, request, *args, **kwargs):
+        # Обработка множественных изображений при обновлении
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        images = request.FILES.getlist('images', [])
+        
+        # Извлекаем images из request.data для serializer
+        data = request.data.copy()
+        if 'images' in data:
+            del data['images']
+        
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+        
+        # Если переданы новые изображения, добавляем их (а старые оставляем)
+        for image_file in images:
+            ProductImage.objects.create(product=product, image=image_file)
+        
+        return Response(ProductSerializer(product).data)
 
 # --- ПРОФИЛЬ И HR ---
 class RegisterAPIView(generics.CreateAPIView):
@@ -137,12 +285,68 @@ class OrderViewSet(viewsets.ModelViewSet):
         if order.status != Order.STATUS_CART:
             return Response({'detail': 'Order already placed'}, status=400)
         
-        # Сохраняем данные из формы оформления
+        # Сохраняем данные из формы
         order.address = request.data.get('address')
         order.phone = request.data.get('phone')
         order.delivery_time = request.data.get('delivery_time')
         order.notes = request.data.get('notes')
         
         order.status = Order.STATUS_PLACED
+        order.created_at = timezone.now()
+        
         order.save()
         return Response(OrderSerializer(order).data)
+
+
+# --- УПРАВЛЕНИЕ ТОВАРАМИ В ЗАКАЗЕ ---
+class OrderItemViewSet(viewsets.ModelViewSet):
+    queryset = OrderItem.objects.all()
+    serializer_class = None  # Не используем сериализатор по умолчанию
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        return None  # Обработаем ручную сериализацию
+
+    def update(self, request, pk=None):
+        """PATCH /api/order-items/{id}/ - обновить количество товара"""
+        try:
+            item = OrderItem.objects.get(pk=pk)
+            # Проверяем, что товар в корзине текущего пользователя
+            if item.order.user != request.user:
+                return Response({'detail': 'Доступ запрещен'}, status=403)
+            
+            new_quantity = request.data.get('quantity')
+            if new_quantity and new_quantity > 0:
+                item.quantity = new_quantity
+                item.total_price = item.price * item.quantity
+                item.save()
+                
+                # Пересчитываем общую стоимость заказа
+                item.order.recalc_total()
+                
+                return Response({
+                    'id': item.id,
+                    'quantity': item.quantity,
+                    'total_price': item.total_price
+                })
+            return Response({'detail': 'Количество должно быть больше 0'}, status=400)
+        except OrderItem.DoesNotExist:
+            return Response({'detail': 'Товар не найден'}, status=404)
+
+    def destroy(self, request, pk=None):
+        """DELETE /api/order-items/{id}/ - удалить товар из заказа"""
+        try:
+            item = OrderItem.objects.get(pk=pk)
+            # Проверяем, что товар в корзине текущего пользователя
+            if item.order.user != request.user:
+                return Response({'detail': 'Доступ запрещен'}, status=403)
+            
+            order = item.order
+            item.delete()
+            
+            # Пересчитываем общую стоимость заказа
+            order.recalc_total()
+            
+            return Response({'detail': 'Товар удален'}, status=200)
+        except OrderItem.DoesNotExist:
+            return Response({'detail': 'Товар не найден'}, status=404)

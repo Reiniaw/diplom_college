@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { getHeaders, getProductImageUrl } from '../utils/helpers';
 
 export default function Cart() {
   const [cart, setCart] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // itemId для удаления
   const navigate = useNavigate();
   const token = localStorage.getItem('access');
-  const headers = { Authorization: `Bearer ${token}` };
   
   const [shippingInfo, setShippingInfo] = useState({
     address: '',
@@ -22,17 +24,52 @@ export default function Cart() {
 
   const fetchCart = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers });
+      const res = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers: getHeaders() });
       setCart(res.data);
     } catch (err) {
       console.error("Ошибка загрузки корзины");
     }
   };
 
+  // --- ИЗМЕНЕНИЕ КОЛИЧЕСТВА ТОВАРА ---
+  const handleUpdateQuantity = async (itemId, newQuantity) => {
+    if (newQuantity < 1) return;
+    setLoading(true);
+    try {
+      await axios.patch(
+        `http://127.0.0.1:8000/api/order-items/${itemId}/`,
+        { quantity: newQuantity },
+        { headers: getHeaders() }
+      );
+      fetchCart(); // Обновляем корзину
+    } catch (err) {
+      alert("Ошибка при обновлении количества");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- УДАЛЕНИЕ ТОВАРА ИЗ КОРЗИНЫ ---
+  const handleRemoveItem = async (itemId) => {
+    setLoading(true);
+    try {
+      await axios.delete(
+        `http://127.0.0.1:8000/api/order-items/${itemId}/`,
+        { headers: getHeaders() }
+      );
+      fetchCart(); // Обновляем корзину
+      setDeleteConfirm(null); // Закрываем модальное окно
+    } catch (err) {
+      alert("Ошибка при удалении товара");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- ЛОГИКА АВТОЗАПОЛНЕНИЯ ---
   const fetchLastOrderInfo = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/orders/', { headers });
+      const res = await axios.get('http://127.0.0.1:8000/api/orders/', { headers: getHeaders() });
       // Берем самый свежий заказ, который уже был оформлен (не корзину)
       const lastOrder = res.data.find(o => o.status !== 'cart');
       
@@ -68,7 +105,7 @@ export default function Cart() {
         return;
     }
     try {
-      await axios.post(`http://127.0.0.1:8000/api/orders/${cart.id}/checkout/`, shippingInfo, { headers });
+      await axios.post(`http://127.0.0.1:8000/api/orders/${cart.id}/checkout/`, shippingInfo, { headers: getHeaders() });
       alert("Заказ принят!");
       navigate('/profile');
     } catch (err) {
@@ -90,15 +127,78 @@ export default function Cart() {
         {/* Список товаров */}
         <div className="space-y-4 mb-10">
           {cart.items.map(item => (
-            <div key={item.id} className="bg-slate-900 border border-slate-800 p-6 rounded-3xl flex justify-between items-center">
+            <div key={item.id} className="bg-slate-900 border border-slate-800 p-6 rounded-3xl flex justify-between items-center gap-6">
               <div className="flex items-center gap-4">
                 <img src={item.product_image} className="w-16 h-16 rounded-xl object-cover" alt="" />
-                <span className="font-bold">{item.product_name}</span>
+                <div>
+                  <span className="font-bold block">{item.product_name}</span>
+                  <span className="text-sm text-slate-400">{item.price} ₸</span>
+                </div>
               </div>
-              <span className="font-mono text-sky-400">{item.total_price} ₸</span>
+              
+              {/* УПРАВЛЕНИЕ КОЛИЧЕСТВОМ И УДАЛЕНИЕ */}
+              <div className="flex items-center gap-4">
+                {/* Кнопки управления количеством */}
+                <div className="flex items-center gap-2 bg-slate-950 rounded-xl px-2 py-1">
+                  <button
+                    onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                    disabled={loading}
+                    className="w-8 h-8 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/40 transition disabled:opacity-50 font-bold"
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center font-bold">{item.quantity}</span>
+                  <button
+                    onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                    disabled={loading}
+                    className="w-8 h-8 bg-sky-500/20 text-sky-400 rounded-lg hover:bg-sky-500/40 transition disabled:opacity-50 font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Цена товара */}
+                <span className="font-mono text-sky-400 w-24 text-right">{item.total_price} ₸</span>
+
+                {/* Кнопка удаления */}
+                <button
+                  onClick={() => setDeleteConfirm(item.id)}
+                  disabled={loading}
+                  className="w-10 h-10 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/40 transition disabled:opacity-50 flex items-center justify-center"
+                  title="Удалить из корзины"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
         </div>
+
+        {/* МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-sm shadow-2xl">
+              <h3 className="text-xl font-bold text-white mb-4">Удалить товар?</h3>
+              <p className="text-slate-400 mb-6">Это действие нельзя отменить</p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  disabled={loading}
+                  className="flex-1 px-4 py-3 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition disabled:opacity-50 font-bold"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={() => handleRemoveItem(deleteConfirm)}
+                  disabled={loading}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition disabled:opacity-50 font-bold"
+                >
+                  {loading ? 'Удаляю...' : 'Удалить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ПАНЕЛЬ ДАННЫХ */}
 {/* ПАНЕЛЬ ДАННЫХ */}

@@ -5,8 +5,22 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+class TechField(models.Model):
+    key = models.CharField(max_length=50, unique=True, verbose_name="Ключ")
+    label = models.CharField(max_length=100, verbose_name="Название поля")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Техническое поле"
+        verbose_name_plural = "Технические поля"
+
+    def __str__(self):
+        return self.label
+
+
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name="Название категории")
+    tech_fields = models.ManyToManyField(TechField, blank=True, verbose_name="Технические характеристики")
 
     class Meta:
         verbose_name = "Категория"
@@ -22,7 +36,15 @@ class Product(models.Model):
     description = models.TextField(blank=True, verbose_name="Описание")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Цена")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата добавления")
-    image = models.ImageField(upload_to='products/', null=True, blank=True)
+
+    megapixels = models.CharField(max_length=50, blank=True, null=True, verbose_name="Мегапиксели")
+    sensor_type = models.CharField(max_length=100, blank=True, null=True, verbose_name="Тип матрицы")
+    video_resolution = models.CharField(max_length=100, blank=True, null=True, verbose_name="Разрешение видео")
+    weight = models.CharField(max_length=50, blank=True, null=True, verbose_name="Вес")
+    power = models.CharField(max_length=50, blank=True, null=True, verbose_name="Мощность (Вт)")
+    frequency = models.CharField(max_length=100, blank=True, null=True, verbose_name="Частотный диапазон")
+    battery_life = models.CharField(max_length=50, blank=True, null=True, verbose_name="Время работы (ч)")
+    connection = models.CharField(max_length=100, blank=True, null=True, verbose_name="Подключение")
 
     class Meta:
         verbose_name = "Товар"
@@ -30,6 +52,27 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+    
+    @property
+    def image(self):
+        """Для совместимости - возвращает первое изображение"""
+        first_image = self.images.first()
+        return first_image.image if first_image else None
+
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images', verbose_name="Товар")
+    image = models.ImageField(upload_to='products/', verbose_name="Изображение")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Изображение товара"
+        verbose_name_plural = "Изображения товаров"
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.product.name} - фото"
+
 
 class Order(models.Model):
     STATUS_CART = 'cart'

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { getHeaders, getProductImageUrl } from '../utils/helpers';
 
 export default function OrdersManager() {
   const [orders, setOrders] = useState([]);
@@ -7,7 +8,6 @@ export default function OrdersManager() {
   const [filterStatus, setFilterStatus] = useState('all');
 
   const token = localStorage.getItem('access');
-  const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     fetchOrders();
@@ -15,7 +15,7 @@ export default function OrdersManager() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/orders/', { headers });
+      const res = await axios.get('http://127.0.0.1:8000/api/orders/', { headers: getHeaders() });
       // Убираем из списка корзины, оставляем только реальные заказы
       setOrders(res.data.filter(o => o.status !== 'cart'));
     } catch (err) {
@@ -29,7 +29,7 @@ export default function OrdersManager() {
     try {
       await axios.patch(`http://127.0.0.1:8000/api/orders/${orderId}/`, 
         { status: newStatus }, 
-        { headers }
+        { headers: getHeaders() }
       );
       alert(`Статус заказа #${orderId} изменен на ${newStatus}`);
       fetchOrders(); // Обновляем список

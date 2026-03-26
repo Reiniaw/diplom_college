@@ -1,36 +1,66 @@
 from rest_framework import serializers
-from .models import Category, Product, Order, OrderItem
+from .models import Category, Product, Order, OrderItem, TechField, ProductImage
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+class TechFieldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TechField
+        fields = ['id', 'key', 'label']
+
+class ProductImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'image']
+
 class CategorySerializer(serializers.ModelSerializer):
+    tech_fields = TechFieldSerializer(many=True, read_only=True)
+    tech_field_ids = serializers.PrimaryKeyRelatedField(
+        queryset=TechField.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+        source='tech_fields'
+    )
+    
     class Meta:
         model = Category
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'tech_fields', 'tech_field_ids']
 
 class ProductSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+    images = ProductImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'price', 'created_at', 'category', 'image']
+        fields = '__all__'
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
     product_image = serializers.SerializerMethodField()
+    product_images = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'product_name', 'product_image', 'quantity', 'price', 'total_price']
+        fields = ['id', 'product', 'product_name', 'product_image', 'product_images', 'quantity', 'price', 'total_price']
 
     def get_product_image(self, obj):
+        """Первое изображение товара для совместимости"""
         if obj.product.image:
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(obj.product.image.url)
             return obj.product.image.url
         return None
+
+    def get_product_images(self, obj):
+        """Все изображения товара"""
+        images = obj.product.images.all()
+        request = self.context.get('request')
+        if request:
+            return [request.build_absolute_uri(img.image.url) for img in images]
+        return [img.image.url for img in images]
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
