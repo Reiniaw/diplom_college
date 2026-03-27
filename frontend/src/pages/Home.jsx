@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { getHeaders, getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
+import { useToast } from '../components/ToastContext';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -12,6 +13,7 @@ export default function Home() {
   const [selectedImageIndexes, setSelectedImageIndexes] = useState({}); // productId -> imageIndex
 
   const token = localStorage.getItem('access');
+  const toast = useToast();
 
   useEffect(() => {
     fetchData();
@@ -40,7 +42,7 @@ export default function Home() {
   // --- ЛОГИКА ДОБАВЛЕНИЯ В КОРЗИНУ ---
   const addToCart = async (productId) => {
     if (!token) {
-      alert("Для совершения покупок необходимо войти в аккаунт!");
+      toast.addToast("Для совершения покупок необходимо войти в аккаунт!", "error");
       return;
     }
 
@@ -53,10 +55,10 @@ export default function Home() {
         { headers: getHeaders() }
       );
 
-      alert("Товар успешно добавлен в корзину! 📸");
+      toast.addToast("Товар успешно добавлен в корзину! 📸");
     } catch (err) {
       console.error("Ошибка при добавлении в корзину:", err);
-      alert("Не удалось добавить товар. Проверьте соединение с сервером.");
+      toast.addToast("Не удалось добавить товар. Проверьте соединение с сервером.", "error");
     }
   };
 
@@ -129,13 +131,13 @@ export default function Home() {
               Все модели
             </button>
             {categories.map(cat => (
-              <button 
+              <Link
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
+                to={`/category/${cat.id}`}
                 className={`px-6 py-3 rounded-2xl font-bold transition-all whitespace-nowrap ${selectedCategory === cat.id ? 'bg-sky-500 text-slate-950' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-slate-700'}`}
               >
                 {cat.name}
-              </button>
+              </Link>
             ))}
           </nav>
 

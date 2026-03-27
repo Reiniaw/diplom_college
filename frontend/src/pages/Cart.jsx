@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { getHeaders, getProductImageUrl } from '../utils/helpers';
+import { useToast } from '../components/ToastContext';
 
 export default function Cart() {
   const [cart, setCart] = useState(null);
@@ -9,6 +10,7 @@ export default function Cart() {
   const [deleteConfirm, setDeleteConfirm] = useState(null); // itemId для удаления
   const navigate = useNavigate();
   const token = localStorage.getItem('access');
+  const toast = useToast();
   
   const [shippingInfo, setShippingInfo] = useState({
     address: '',
@@ -60,7 +62,7 @@ export default function Cart() {
       fetchCart(); // Обновляем корзину
       setDeleteConfirm(null); // Закрываем модальное окно
     } catch (err) {
-      alert("Ошибка при удалении товара");
+      toast.addToast("Ошибка при удалении товара", "error");
     } finally {
       setLoading(false);
     }
@@ -101,15 +103,15 @@ export default function Cart() {
 
   const handleCheckout = async () => {
     if (!shippingInfo.address || shippingInfo.phone.length < 18) {
-        alert("Пожалуйста, укажите полный адрес и корректный номер телефона!");
+        toast.addToast("Пожалуйста, укажите полный адрес и корректный номер телефона!", "error");
         return;
     }
     try {
       await axios.post(`http://127.0.0.1:8000/api/orders/${cart.id}/checkout/`, shippingInfo, { headers: getHeaders() });
-      alert("Заказ принят!");
+      toast.addToast("Заказ принят!");
       navigate('/profile');
     } catch (err) {
-      alert("Ошибка при оформлении");
+      toast.addToast("Ошибка при оформлении", "error");
     }
   };
 

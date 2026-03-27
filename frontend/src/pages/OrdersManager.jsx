@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getHeaders, getProductImageUrl } from '../utils/helpers';
+import { useToast } from '../components/ToastContext';
 
 export default function OrdersManager() {
   const [orders, setOrders] = useState([]);
@@ -8,6 +9,7 @@ export default function OrdersManager() {
   const [filterStatus, setFilterStatus] = useState('all');
 
   const token = localStorage.getItem('access');
+  const toast = useToast();
 
   useEffect(() => {
     fetchOrders();
@@ -31,10 +33,10 @@ export default function OrdersManager() {
         { status: newStatus }, 
         { headers: getHeaders() }
       );
-      alert(`Статус заказа #${orderId} изменен на ${newStatus}`);
+      toast.addToast(`Статус заказа #${orderId} изменен на ${newStatus}`);
       fetchOrders(); // Обновляем список
     } catch (err) {
-      alert("Ошибка при обновлении статуса");
+      toast.addToast("Ошибка при обновлении статуса", "error");
     }
   };
 

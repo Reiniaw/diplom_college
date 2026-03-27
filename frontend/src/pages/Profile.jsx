@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { getHeaders } from '../utils/helpers';
+import { useToast } from '../components/ToastContext';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -17,6 +18,7 @@ export default function Profile() {
 
   const navigate = useNavigate();
   const token = localStorage.getItem('access');
+  const toast = useToast();
 
   // 1. Первичная загрузка профиля
   useEffect(() => {
@@ -91,11 +93,11 @@ export default function Profile() {
     e.preventDefault();
     try {
       await axios.post('http://127.0.0.1:8000/api/register/', newEmployee, { headers: getHeaders() });
-      alert(`Сотрудник ${newEmployee.username} нанят!`);
+      toast.addToast(`Сотрудник ${newEmployee.username} нанят!`);
       setNewEmployee({ username: '', password: '', role: 'seller' });
       setShowHireForm(false);
       fetchEmployees();
-    } catch (err) { alert("Ошибка при создании"); }
+    } catch (err) { toast.addToast("Ошибка при создании", "error"); }
   };
 
   const handleFire = async (id, username) => {

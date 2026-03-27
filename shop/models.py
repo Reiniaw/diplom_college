@@ -60,6 +60,20 @@ class Product(models.Model):
         return first_image.image if first_image else None
 
 
+class ProductTechValue(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='tech_values', verbose_name="Товар")
+    tech_field = models.ForeignKey(TechField, on_delete=models.CASCADE, verbose_name="Техническое поле")
+    value = models.CharField(max_length=255, blank=True, verbose_name="Значение")
+
+    class Meta:
+        verbose_name = "Значение тех. поля товара"
+        verbose_name_plural = "Значения тех. полей товаров"
+        unique_together = ('product', 'tech_field')
+
+    def __str__(self):
+        return f"{self.product.name} - {self.tech_field.label}: {self.value}"
+
+
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images', verbose_name="Товар")
     image = models.ImageField(upload_to='products/', verbose_name="Изображение")
@@ -126,6 +140,7 @@ class OrderItem(models.Model):
         super().save(*args, **kwargs)
         # update order total
         self.order.recalc_total()
+
 
 class User(AbstractUser):
     ROLE_CHOICES = (

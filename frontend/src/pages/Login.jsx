@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../components/ToastContext';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({ username: '', password: '' });
   const navigate = useNavigate();
+  const toast = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,11 +19,11 @@ const Login = () => {
         localStorage.setItem('refresh', res.data.refresh);
         window.location.href = '/profile'; // Перезагружаем для обновления хэдера
       } else {
-        alert("Регистрация прошла успешно! Теперь войдите.");
+        toast.addToast("Регистрация прошла успешно! Теперь войдите.");
         setIsLogin(true);
       }
     } catch (err) {
-      alert("Ошибка: проверьте данные");
+      toast.addToast("Ошибка: проверьте данные", "error");
     }
   };
 

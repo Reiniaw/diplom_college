@@ -9,7 +9,7 @@ from django.db.models import Sum, Count
 from django.db.models.functions import TruncDate
 from django.db.models import F, JSONField
 
-from .models import Category, Product, Order, OrderItem, TechField, ProductImage
+from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue
 from .serializers import (
     CategorySerializer, ProductSerializer, 
     OrderSerializer, AddItemSerializer, 
@@ -159,9 +159,30 @@ class ProductViewSet(viewsets.ModelViewSet):
         if 'images' in data:
             del data['images']
         
+        # Извлекаем tech_values
+        tech_values_data = {}
+        category_id = data.get('category')
+        if category_id:
+            try:
+                category = Category.objects.get(id=category_id)
+                for tech_field in category.tech_fields.all():
+                    if tech_field.key in data:
+                        tech_values_data[tech_field.id] = data.pop(tech_field.key)
+            except Category.DoesNotExist:
+                pass
+        
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
+        
+        # Сохраняем tech_values
+        for tech_field_id, value in tech_values_data.items():
+            if value:  # Сохраняем только если значение не пустое
+                ProductTechValue.objects.create(
+                    product=product,
+                    tech_field_id=tech_field_id,
+                    value=value
+                )
         
         # Сохраняем изображения
         for image_file in images:
@@ -181,9 +202,32 @@ class ProductViewSet(viewsets.ModelViewSet):
         if 'images' in data:
             del data['images']
         
+        # Извлекаем tech_values
+        tech_values_data = {}
+        category_id = data.get('category', instance.category_id)
+        if category_id:
+            try:
+                category = Category.objects.get(id=category_id)
+                for tech_field in category.tech_fields.all():
+                    if tech_field.key in data:
+                        tech_values_data[tech_field.id] = data.pop(tech_field.key)
+            except Category.DoesNotExist:
+                pass
+        
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
+        
+        # Обновляем tech_values
+        for tech_field_id, value in tech_values_data.items():
+            tech_value, created = ProductTechValue.objects.get_or_create(
+                product=product,
+                tech_field_id=tech_field_id,
+                defaults={'value': value}
+            )
+            if not created:
+                tech_value.value = value
+                tech_value.save()
         
         # Если переданы новые изображения, добавляем их (а старые оставляем)
         for image_file in images:

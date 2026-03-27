@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { getHeaders, getProductImagesUrls } from '../utils/helpers';
+import { useToast } from '../components/ToastContext';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -11,6 +12,7 @@ export default function ProductDetail() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   const token = localStorage.getItem('access');
+  const toast = useToast();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -44,7 +46,7 @@ export default function ProductDetail() {
 
   const addToCart = async () => {
     if (!token) {
-      alert("Войдите в аккаунт!");
+      toast.addToast("Войдите в аккаунт!", "error");
       return;
     }
     try {
@@ -52,9 +54,9 @@ export default function ProductDetail() {
       await axios.post(`http://127.0.0.1:8000/api/orders/${cartRes.data.id}/add-item/`, 
         { product_id: product.id, quantity: 1 }, { headers: getHeaders() }
       );
-      alert("Добавлено в корзину! 📸");
+      toast.addToast("Добавлено в корзину! 📸");
     } catch (err) {
-      alert("Ошибка при добавлении");
+      toast.addToast("Ошибка при добавлении", "error");
     }
   };
 
@@ -156,13 +158,16 @@ export default function ProductDetail() {
                 <SpecRow label="Масса" value={product.weight ? `${product.weight} г` : null} />
                 
                 {/* Динамические поля из категории */}
-                {category?.tech_fields?.map((field) => (
-                  <SpecRow 
-                    key={field.id}
-                    label={field.label}
-                    value={product[field.key]} 
-                  />
-                ))}
+                {category?.tech_fields?.map((field) => {
+                  const techValue = product.tech_values?.find(tv => tv.tech_field.id === field.id);
+                  return (
+                    <SpecRow 
+                      key={field.id}
+                      label={field.label}
+                      value={techValue?.value} 
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -181,11 +186,13 @@ export default function ProductDetail() {
 }
 
 function SpecRow({ label, value }) {
-  if (!value) return null;
+  // Убираем кавычки в начале и конце, если они есть, и конвертируем в строку
+  const cleanValue = typeof value === 'string' ? value.replace(/^["\']|["\']$/g, '').trim() : String(value || '').trim();
+  if (!cleanValue) return null;
   return (
     <div className="flex justify-between items-center py-4 border-b border-slate-900/50 group">
       <span className="text-slate-500 group-hover:text-slate-300 transition-colors uppercase text-[10px] tracking-widest">{label}</span>
-      <span className="text-white font-mono text-sm">{value}</span>
+      <span className="text-white font-mono text-sm">{cleanValue}</span>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useToast } from '../components/ToastContext';
 
 export default function Warehouse() {
   const [user, setUser] = useState(null);
@@ -28,6 +29,8 @@ export default function Warehouse() {
   });
   const [images, setImages] = useState([]); // Несколько изображений
   const [imagePreviews, setImagePreviews] = useState([]); // Превью существующих
+
+  const toast = useToast();
 
   const getHeaders = () => {
     const token = localStorage.getItem('access');
@@ -74,7 +77,7 @@ export default function Warehouse() {
       fetchInitialData();
     } catch (err) { 
       console.error("Ошибка создания категории:", err);
-      alert("Ошибка при создании категории: " + (err.response?.data?.name?.[0] || err.message)); 
+      toast.addToast("Ошибка при создании категории: " + (err.response?.data?.name?.[0] || err.message), "error"); 
     }
   };
 
@@ -90,7 +93,7 @@ export default function Warehouse() {
       setIsAddingTechField(false);
     } catch (err) { 
       console.error("Ошибка создания техполя:", err);
-      alert("Ошибка при создании поля: " + err.message); 
+      toast.addToast("Ошибка при создании поля: " + err.message, "error"); 
     }
   };
 
@@ -109,7 +112,7 @@ export default function Warehouse() {
         await axios.delete(`http://127.0.0.1:8000/api/categories/${id}/`, { headers: getHeaders() });
         if (selectedFilter === id) setSelectedFilter(null);
         fetchInitialData();
-      } catch (err) { alert("Не удалось удалить категорию"); }
+      } catch (err) { toast.addToast("Не удалось удалить категорию", "error"); }
     }
   };
 
@@ -130,6 +133,14 @@ export default function Warehouse() {
       battery_life: product.battery_life || '',
       connection: product.connection || ''
     });
+    // Загружаем существующие tech_values
+    if (product.tech_values) {
+      const updatedProduct = { ...newProduct };
+      product.tech_values.forEach(tv => {
+        updatedProduct[tv.tech_field.key] = tv.value || '';
+      });
+      setNewProduct(updatedProduct);
+    }
     // Загружаем существующие изображения
     const existingImages = (product.images || []).map(img => ({
       id: img.id,
@@ -150,9 +161,8 @@ export default function Warehouse() {
     } else {
       // Админы меняют всё. Проходимся по всем ключам, чтобы подхватить динамические поля
       Object.keys(newProduct).forEach(key => {
-        if (newProduct[key] !== null && newProduct[key] !== '') {
-          formData.append(key, newProduct[key]);
-        }
+        // Всегда отправляем поле, даже если оно пустое, чтобы обновить на null
+        formData.append(key, newProduct[key] || '');
       });
       // Добавляем новые изображения
       images.forEach((img, index) => {
@@ -182,7 +192,7 @@ export default function Warehouse() {
       fetchInitialData();
     } catch (err) { 
       console.error("Ошибка сохранения:", err);
-      alert("Ошибка сохранения. Проверьте данные."); 
+      toast.addToast("Ошибка сохранения. Проверьте данные.", "error"); 
     }
   };
 

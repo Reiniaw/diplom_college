@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, Order, OrderItem, TechField, ProductImage
+from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -8,6 +8,18 @@ class TechFieldSerializer(serializers.ModelSerializer):
     class Meta:
         model = TechField
         fields = ['id', 'key', 'label']
+
+class ProductTechValueSerializer(serializers.ModelSerializer):
+    tech_field = TechFieldSerializer(read_only=True)
+    tech_field_id = serializers.PrimaryKeyRelatedField(
+        queryset=TechField.objects.all(),
+        write_only=True,
+        source='tech_field'
+    )
+    
+    class Meta:
+        model = ProductTechValue
+        fields = ['id', 'tech_field', 'tech_field_id', 'value']
 
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,6 +43,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     images = ProductImageSerializer(many=True, read_only=True)
+    tech_values = ProductTechValueSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
