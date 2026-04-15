@@ -13,7 +13,8 @@ from .models import Category, Product, Order, OrderItem, TechField, ProductImage
 from .serializers import (
     CategorySerializer, ProductSerializer, 
     OrderSerializer, AddItemSerializer, 
-    UserSerializer, RegisterSerializer, TechFieldSerializer
+    UserSerializer, RegisterSerializer, TechFieldSerializer,
+    OrderItemSerializer, OrderItemUpdateSerializer
 )
 
 User = get_user_model()
@@ -345,13 +346,12 @@ class OrderViewSet(viewsets.ModelViewSet):
 # --- УПРАВЛЕНИЕ ТОВАРАМИ В ЗАКАЗЕ ---
 class OrderItemViewSet(viewsets.ModelViewSet):
     queryset = OrderItem.objects.all()
-    serializer_class = None  # Не используем сериализатор по умолчанию
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        return None  # Обработаем ручную сериализацию
+        return OrderItemSerializer
 
-    def update(self, request, pk=None):
+    def partial_update(self, request, pk=None):
         """PATCH /api/order-items/{id}/ - обновить количество товара"""
         try:
             item = OrderItem.objects.get(pk=pk)
@@ -360,22 +360,32 @@ class OrderItemViewSet(viewsets.ModelViewSet):
                 return Response({'detail': 'Доступ запрещен'}, status=403)
             
             new_quantity = request.data.get('quantity')
-            if new_quantity and new_quantity > 0:
-                item.quantity = new_quantity
-                item.total_price = item.price * item.quantity
-                item.save()
-                
-                # Пересчитываем общую стоимость заказа
-                item.order.recalc_total()
-                
-                return Response({
-                    'id': item.id,
-                    'quantity': item.quantity,
-                    'total_price': item.total_price
-                })
-            return Response({'detail': 'Количество должно быть больше 0'}, status=400)
+            if not new_quantity:
+                return Response({'detail': 'Количество требуется'}, status=400)
+            
+            try:
+                new_quantity = int(new_quantity)
+            except (ValueError, TypeError):
+                return Response({'detail': 'Количество должно быть числом'}, status=400)
+            
+            if new_quantity < 1:
+                return Response({'detail': 'Количество должно быть больше 0'}, status=400)
+            
+            item.quantity = new_quantity
+            item.total_price = item.price * item.quantity
+            item.save()
+            
+            # Пересчитываем общую стоимость заказа
+            item.order.recalc_total()
+            
+            serializer = OrderItemSerializer(item, context={'request': request})
+            return Response(serializer.data)
         except OrderItem.DoesNotExist:
             return Response({'detail': 'Товар не найден'}, status=404)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'detail': f'Ошибка: {str(e)}'}, status=500)
 
     def destroy(self, request, pk=None):
         """DELETE /api/order-items/{id}/ - удалить товар из заказа"""
@@ -391,6 +401,12 @@ class OrderItemViewSet(viewsets.ModelViewSet):
             # Пересчитываем общую стоимость заказа
             order.recalc_total()
             
-            return Response({'detail': 'Товар удален'}, status=200)
+            return Response({'detail': 'Товар удален'}, status=204)
         except OrderItem.DoesNotExist:
             return Response({'detail': 'Товар не найден'}, status=404)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'detail': f'Ошибка: {str(e)}'}, status=500)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=400)

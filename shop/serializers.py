@@ -75,6 +75,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
             return [request.build_absolute_uri(img.image.url) for img in images]
         return [img.image.url for img in images]
 
+class OrderItemUpdateSerializer(serializers.ModelSerializer):
+    """Простой сериализатор для обновления количества товара"""
+    class Meta:
+        model = OrderItem
+        fields = ['quantity']
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     user_name = serializers.ReadOnlyField(source='user.username') # Чтобы видеть, кто купил

@@ -44,8 +44,9 @@ export default function Cart() {
         { headers: getHeaders() }
       );
       fetchCart(); // Обновляем корзину
+      toast.addToast("Количество обновлено");
     } catch (err) {
-      alert("Ошибка при обновлении количества");
+      toast.addToast("Ошибка при обновлении количества", "error");
     } finally {
       setLoading(false);
     }

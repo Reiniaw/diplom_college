@@ -47,9 +47,11 @@ export default function Navbar() {
         <div className="flex items-center gap-6">
           {token ? (
             <>
-              <Link to="/cart" className="relative p-2 text-slate-400 hover:text-sky-500 transition-colors">
-                <span className="text-xl">🛒</span>
-                {/* Здесь можно добавить индикатор количества товаров */}
+              <Link to="/cart" className="relative flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-sky-500 transition-colors border border-slate-800 hover:border-sky-500 rounded-lg group">
+                <span className="text-xs font-black uppercase tracking-widest group-hover:text-sky-500">Корзина</span>
+                <div className="w-5 h-5 rounded-full bg-sky-500/20 group-hover:bg-sky-500/40 flex items-center justify-center">
+                  <span className="text-[10px] font-black text-sky-500">📦</span>
+                </div>
               </Link>
               <Link to="/profile" className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/10 transition-all">
                 <span className="text-xs font-bold uppercase tracking-tighter">{user?.username}</span>

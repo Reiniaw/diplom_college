@@ -103,7 +103,7 @@ export default function Home() {
           </div>
           
           <h1 className="text-7xl md:text-8xl font-black italic uppercase tracking-tighter mb-6">
-            ЗАПЕЧАТЛЕЙ <br/><span className="text-sky-500">идеальный кадр</span>
+            ЗАПЕЧАТЛИ <br/><span className="text-sky-500">идеальный кадр</span>
           </h1>
           <p className="text-slate-400 text-lg md:text-xl max-w-3xl mx-auto font-light leading-relaxed mb-12">
             От профессиональных камер до инновационных аксессуаров. <br />
