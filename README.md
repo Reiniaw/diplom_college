@@ -13,7 +13,7 @@
 ### 1. Клонирование репозитория
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Reiniaw/diplom_college
 cd diplom/backend
 ```
 
