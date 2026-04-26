@@ -23,7 +23,7 @@ export default function Warehouse() {
   
   // Расширен стейт для динамических характеристик
   const [newProduct, setNewProduct] = useState({ 
-    name: '', price: '', category: '', description: '',
+    name: '', price: '', stock: '', category: '', description: '',
     megapixels: '', sensor_type: '', video_resolution: '', weight: '',
     power: '', frequency: '', battery_life: '', connection: ''
   });
@@ -118,10 +118,11 @@ export default function Warehouse() {
 
   // --- ЛОГИКА ТОВАРОВ ---
   const startEdit = (product) => {
-    setEditingProduct(product);
-    setNewProduct({
+    // Создаем объект с базовыми значениями
+    const updatedProduct = {
       name: product.name || '',
       price: product.price || '',
+      stock: product.stock || '',
       category: product.category || '',
       description: product.description || '',
       megapixels: product.megapixels || '',
@@ -132,20 +133,24 @@ export default function Warehouse() {
       frequency: product.frequency || '',
       battery_life: product.battery_life || '',
       connection: product.connection || ''
-    });
-    // Загружаем существующие tech_values
+    };
+    
+    // Добавляем tech_values к этому же объекту
     if (product.tech_values) {
-      const updatedProduct = { ...newProduct };
       product.tech_values.forEach(tv => {
         updatedProduct[tv.tech_field.key] = tv.value || '';
       });
-      setNewProduct(updatedProduct);
     }
+    
     // Загружаем существующие изображения
     const existingImages = (product.images || []).map(img => ({
       id: img.id,
       url: img.image.startsWith('http') ? img.image : `http://127.0.0.1:8000${img.image}`
     }));
+    
+    // Обновляем всё сразу
+    setEditingProduct(product);
+    setNewProduct(updatedProduct);
     setImagePreviews(existingImages);
     setImages([]);
     setIsModalOpen(true);
@@ -156,8 +161,9 @@ export default function Warehouse() {
     const formData = new FormData();
     
     if (user.role === 'seller') {
-      // Продавец меняет только цену
+      // Продавец меняет цену и количество
       formData.append('price', newProduct.price);
+      formData.append('stock', newProduct.stock);
     } else {
       // Админы меняют всё. Проходимся по всем ключам, чтобы подхватить динамические поля
       Object.keys(newProduct).forEach(key => {
@@ -207,7 +213,7 @@ export default function Warehouse() {
     setIsModalOpen(false);
     setEditingProduct(null);
     setNewProduct({ 
-      name: '', price: '', category: '', description: '',
+      name: '', price: '', stock: '', category: '', description: '',
       megapixels: '', sensor_type: '', video_resolution: '', weight: '',
       power: '', frequency: '', battery_life: '', connection: ''
     });
@@ -318,6 +324,9 @@ export default function Warehouse() {
                     <div className="flex-1">
                       <h3 className="text-lg font-bold">{product.name}</h3>
                       <p className="text-sky-400 font-mono text-xl">{product.price} ₸</p>
+                      <p className={`text-sm font-bold ${product.is_in_stock ? 'text-green-400' : 'text-red-400'}`}>
+                        Кол-во: {product.stock}
+                      </p>
                     </div>
                     <div className="flex flex-col gap-2">
                       <button onClick={() => startEdit(product)} className="p-3 bg-slate-800 rounded-xl hover:bg-sky-500 hover:text-black transition-all">✎</button>
@@ -336,7 +345,14 @@ export default function Warehouse() {
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
             <form onSubmit={handleSaveProduct} className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] max-w-2xl w-full my-8 space-y-6">
-              <h2 className="text-3xl font-bold italic uppercase">{editingProduct ? 'Редактирование' : 'Новый товар'}</h2>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold italic uppercase">{editingProduct ? '✎ Редактирование товара' : '➕ Новый товар'}</h2>
+                  {editingProduct && (
+                    <p className="text-slate-500 text-sm mt-2">ID: #{editingProduct.id} | {editingProduct.name}</p>
+                  )}
+                </div>
+              </div>
               
               {user.role === 'seller' ? (
                 /* ИНТЕРФЕЙС ПРОДАВЦА */
@@ -345,22 +361,40 @@ export default function Warehouse() {
                     <span className="text-[10px] text-slate-500 uppercase tracking-widest block mb-2">Объект изменения</span>
                     <span className="text-xl font-black">{editingProduct?.name}</span>
                   </div>
-                  <div className="space-y-3">
-                    <label className="text-sky-500 text-xs font-bold uppercase ml-2">Новая цена (₸)</label>
-                    <input 
-                      type="number" required
-                      className="w-full bg-slate-950 p-6 rounded-3xl outline-none border-2 border-sky-500 text-4xl font-mono text-center"
-                      value={newProduct.price}
-                      onChange={e => setNewProduct({...newProduct, price: e.target.value})}
-                    />
+                  <div className="grid grid-cols-2 gap-4 space-y-0">
+                    <div className="space-y-3">
+                      <label className="text-sky-500 text-xs font-bold uppercase ml-2">Новая цена (₸)</label>
+                      <input 
+                        type="number" required
+                        className="w-full bg-slate-950 p-6 rounded-3xl outline-none border-2 border-sky-500 text-2xl font-mono text-center"
+                        value={newProduct.price}
+                        onChange={e => setNewProduct({...newProduct, price: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-sky-500 text-xs font-bold uppercase ml-2">Кол-во товаров</label>
+                      <input 
+                        type="number" required
+                        className="w-full bg-slate-950 p-6 rounded-3xl outline-none border-2 border-sky-500 text-2xl font-mono text-center"
+                        value={newProduct.stock}
+                        onChange={e => setNewProduct({...newProduct, stock: e.target.value})}
+                      />
+                    </div>
                   </div>
                 </div>
               ) : (
                 /* ИНТЕРФЕЙС АДМИНА */
                 <div className="space-y-4">
+                  {editingProduct && (
+                    <div className="bg-slate-950/50 border border-sky-500/30 p-4 rounded-2xl">
+                      <p className="text-[10px] text-sky-400 uppercase tracking-widest mb-2">📝 Редактирование существующего товара</p>
+                      <p className="text-slate-400 text-sm">Все поля заполнены текущими значениями. Измените то, что нужно.</p>
+                    </div>
+                  )}
                   <input type="text" placeholder="Наименование" required className="w-full bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <input type="number" placeholder="Цена" required className="bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+                    <input type="number" placeholder="Кол-во" required className="bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
                     <select className="bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
                       <option value="">Категория</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

@@ -41,8 +41,15 @@ export default function Home() {
 
   // --- ЛОГИКА ДОБАВЛЕНИЯ В КОРЗИНУ ---
   const addToCart = async (productId) => {
+    const product = products.find(p => p.id === productId);
+    
     if (!token) {
       toast.addToast("Для совершения покупок необходимо войти в аккаунт!", "error");
+      return;
+    }
+
+    if (!product.is_in_stock) {
+      toast.addToast("Товар нет в наличии!", "error");
       return;
     }
 
@@ -58,7 +65,8 @@ export default function Home() {
       toast.addToast("Товар успешно добавлен в корзину! 📸");
     } catch (err) {
       console.error("Ошибка при добавлении в корзину:", err);
-      toast.addToast("Не удалось добавить товар. Проверьте соединение с сервером.", "error");
+      const errorMsg = err.response?.data?.detail || "Не удалось добавить товар. Проверьте соединение с сервером.";
+      toast.addToast(errorMsg, "error");
     }
   };
 
@@ -189,6 +197,17 @@ export default function Home() {
                   </span>
                 </div>
                 
+                {/* Статус наличия */}
+                <div className="absolute bottom-4 right-4">
+                  <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
+                    product.is_in_stock 
+                      ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                  }`}>
+                    {product.is_in_stock ? `${product.stock} шт` : 'Нет'}
+                  </span>
+                </div>
+                
                 {/* Категория */}
                 <div className="absolute top-4 left-4">
                   <span className="bg-slate-950/80 backdrop-blur-md text-slate-400 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
@@ -240,9 +259,14 @@ export default function Home() {
                 {/* КНОПКА КУПИТЬ */}
                 <button 
                   onClick={() => addToCart(product.id)}
-                  className="w-full bg-white text-slate-950 font-black py-3 rounded-xl hover:bg-sky-500 transition-all uppercase italic text-sm tracking-tight active:scale-95 shadow-lg hover:shadow-sky-500/30 duration-200"
+                  disabled={!product.is_in_stock}
+                  className={`w-full font-black py-3 rounded-xl transition-all uppercase italic text-sm tracking-tight active:scale-95 duration-200 shadow-lg ${
+                    product.is_in_stock 
+                      ? 'bg-white text-slate-950 hover:bg-sky-500 hover:shadow-sky-500/30' 
+                      : 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50'
+                  }`}
                 >
-                  Купить
+                  {product.is_in_stock ? 'Купить' : 'Нет в наличии'}
                 </button>
               </div>
             </div>

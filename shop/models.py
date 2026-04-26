@@ -35,6 +35,7 @@ class Product(models.Model):
     name = models.CharField(max_length=150, verbose_name="Название товара")
     description = models.TextField(blank=True, verbose_name="Описание")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Цена")
+    stock = models.PositiveIntegerField(default=0, verbose_name="Количество в наличии")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата добавления")
 
     megapixels = models.CharField(max_length=50, blank=True, null=True, verbose_name="Мегапиксели")
@@ -52,6 +53,10 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+    
+    def is_in_stock(self):
+        """Проверяет, есть ли товар в наличии"""
+        return self.stock > 0
     
     @property
     def image(self):
@@ -150,6 +155,8 @@ class User(AbstractUser):
         ('director', 'Директор'),
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
+    phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Номер телефона")
+    address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Адрес доставки")
 
     # Это поможет нам в будущем не создавать ошибки с миграциями
     class Meta:

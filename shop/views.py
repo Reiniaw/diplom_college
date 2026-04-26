@@ -14,7 +14,7 @@ from .serializers import (
     CategorySerializer, ProductSerializer, 
     OrderSerializer, AddItemSerializer, 
     UserSerializer, RegisterSerializer, TechFieldSerializer,
-    OrderItemSerializer, OrderItemUpdateSerializer
+    OrderItemSerializer, OrderItemUpdateSerializer, UserUpdateSerializer
 )
 
 User = get_user_model()
@@ -23,6 +23,11 @@ User = get_user_model()
 class IsDirector(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'director'
+
+class IsStaff(BasePermission):
+    """Проверка, является ли пользователь продавцом, менеджером или директором"""
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ['seller', 'manager', 'director']
 
 class DirectorUserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -119,7 +124,7 @@ class DirectorStatsView(APIView):
         })
 class IsStaffOrDirector(BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role in ['manager', 'director']
+        return request.user.is_authenticated and request.user.role in ['seller', 'manager', 'director']
 
 # --- ТЕХНИЧЕСКИЕ ПОЛЯ ---
 class TechFieldViewSet(viewsets.ModelViewSet):
@@ -246,6 +251,14 @@ class CurrentUserView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+    
+    def patch(self, request):
+        """Обновить профиль пользователя"""
+        serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(UserSerializer(request.user).data)
+        return Response(serializer.errors, status=400)
 
 class DirectorUserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -272,12 +285,25 @@ class OrderViewSet(viewsets.ModelViewSet):
         ser = AddItemSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         product = Product.objects.get(pk=ser.validated_data['product_id'])
+        quantity = ser.validated_data['quantity']
+        
+        # Проверяем наличие товара
+        if not product.is_in_stock():
+            return Response({'detail': 'Товар нет в наличии'}, status=400)
+        
+        # Проверяем достаточность количества
+        if product.stock < quantity:
+            return Response({'detail': f'Недостаточно товара. Доступно: {product.stock}'}, status=400)
+        
         item, created = OrderItem.objects.get_or_create(
             order=order, product=product,
-            defaults={'quantity': ser.validated_data['quantity'], 'price': product.price, 'total_price': product.price * ser.validated_data['quantity']}
+            defaults={'quantity': quantity, 'price': product.price, 'total_price': product.price * quantity}
         )
         if not created:
-            item.quantity += ser.validated_data['quantity']
+            # Проверяем достаточность при увеличении количества
+            if product.stock < item.quantity + quantity:
+                return Response({'detail': f'Недостаточно товара. Доступно: {product.stock}'}, status=400)
+            item.quantity += quantity
             item.save()
         order.recalc_total()
         return Response(OrderSerializer(order).data)
@@ -286,7 +312,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def change_status(self, request, pk=None):
         """
         PATCH /api/orders/{pk}/change-status/
-        body: {"status": "shipped"}
+        body: {"status": "placed"} или {"status": "cancelled"}
         """
         order = self.get_object()
         
@@ -295,12 +321,18 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'У вас нет прав для смены статуса'}, status=403)
             
         new_status = request.data.get('status')
-        if new_status in dict(Order.STATUS_CHOICES):
-            order.status = new_status
-            order.save()
-            return Response(OrderSerializer(order).data)
+        if new_status not in dict(Order.STATUS_CHOICES):
+            return Response({'detail': 'Неверный статус'}, status=400)
         
-        return Response({'detail': 'Неверный статус'}, status=400)
+        # Если заказ был размещен и теперь отменяется, возвращаем товары на склад
+        if order.status == Order.STATUS_PLACED and new_status == Order.STATUS_CANCELLED:
+            for item in order.items.all():
+                item.product.stock += item.quantity
+                item.product.save(update_fields=['stock'])
+        
+        order.status = new_status
+        order.save()
+        return Response(OrderSerializer(order).data)
 
     @action(detail=False, methods=['get'], url_path='current-cart')
     def current_cart(self, request):
@@ -329,6 +361,18 @@ class OrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         if order.status != Order.STATUS_CART:
             return Response({'detail': 'Order already placed'}, status=400)
+        
+        # Проверяем наличие товара для всех позиций
+        for item in order.items.all():
+            if not item.product.is_in_stock():
+                return Response({'detail': f'Товар "{item.product.name}" нет в наличии'}, status=400)
+            if item.product.stock < item.quantity:
+                return Response({'detail': f'Недостаточно товара "{item.product.name}". Доступно: {item.product.stock}'}, status=400)
+        
+        # Уменьшаем количество товаров при оформлении заказа
+        for item in order.items.all():
+            item.product.stock -= item.quantity
+            item.product.save(update_fields=['stock'])
         
         # Сохраняем данные из формы
         order.address = request.data.get('address')
@@ -370,6 +414,10 @@ class OrderItemViewSet(viewsets.ModelViewSet):
             
             if new_quantity < 1:
                 return Response({'detail': 'Количество должно быть больше 0'}, status=400)
+            
+            # Проверяем наличие товара в нужном количестве
+            if item.product.stock < new_quantity:
+                return Response({'detail': f'Недостаточно товара. Доступно: {item.product.stock}'}, status=400)
             
             item.quantity = new_quantity
             item.total_price = item.price * item.quantity

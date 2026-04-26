@@ -49,6 +49,10 @@ export default function ProductDetail() {
       toast.addToast("Войдите в аккаунт!", "error");
       return;
     }
+    if (!product.is_in_stock) {
+      toast.addToast("Товар нет в наличии!", "error");
+      return;
+    }
     try {
       const cartRes = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers: getHeaders() });
       await axios.post(`http://127.0.0.1:8000/api/orders/${cartRes.data.id}/add-item/`, 
@@ -56,7 +60,7 @@ export default function ProductDetail() {
       );
       toast.addToast("Добавлено в корзину! 📸");
     } catch (err) {
-      toast.addToast("Ошибка при добавлении", "error");
+      toast.addToast(err.response?.data?.detail || "Ошибка при добавлении", "error");
     }
   };
 
@@ -134,8 +138,10 @@ export default function ProductDetail() {
                <span className="text-4xl font-mono font-black text-sky-400">
                  {Number(product.price).toLocaleString()} ₸
                </span>
-               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-               <span className="text-xs text-slate-500 uppercase tracking-[0.3em]">В наличии</span>
+               <div className={`h-2 w-2 rounded-full ${product.is_in_stock ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+               <span className={`text-xs uppercase tracking-[0.3em] ${product.is_in_stock ? 'text-green-400' : 'text-red-400'}`}>
+                 {product.is_in_stock ? `В наличии (${product.stock})` : 'НЕТ В НАЛИЧИИ'}
+               </span>
             </div>
 
             <div className="bg-slate-900/40 border border-slate-800/50 rounded-[2.5rem] p-8 mb-10">
@@ -173,9 +179,16 @@ export default function ProductDetail() {
 
             <button 
               onClick={addToCart}
-              className="group relative w-full bg-white text-black font-black py-6 rounded-2xl hover:bg-sky-500 transition-all uppercase italic tracking-tighter text-2xl active:scale-[0.97]"
+              disabled={!product.is_in_stock}
+              className={`group relative w-full font-black py-6 rounded-2xl transition-all uppercase italic tracking-tighter text-2xl active:scale-[0.97] ${
+                product.is_in_stock 
+                  ? 'bg-white text-black hover:bg-sky-500' 
+                  : 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50'
+              }`}
             >
-              <span className="relative z-10">Добавить в корзину</span>
+              <span className="relative z-10">
+                {product.is_in_stock ? 'Добавить в корзину' : 'НЕТ В НАЛИЧИИ'}
+              </span>
               <div className="absolute inset-0 rounded-2xl bg-sky-400 blur-xl opacity-0 group-hover:opacity-30 transition-opacity"></div>
             </button>
           </div>

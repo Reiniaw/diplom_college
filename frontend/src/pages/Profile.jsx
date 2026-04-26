@@ -11,6 +11,18 @@ export default function Profile() {
   const [newEmployee, setNewEmployee] = useState({ username: '', password: '', role: 'seller' });
   const [myOrders, setMyOrders] = useState([]);
   
+  // --- РЕДАКТИРОВАНИЕ ПРОФИЛЯ ---
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    email: '',
+    phone: '',
+    address: '',
+    first_name: '',
+    last_name: '',
+    current_password: '',
+    new_password: ''
+  });
+  
   // --- ФИЛЬТР ДАТ И СТАТИСТИКА ---
   const [stats, setStats] = useState(null);
   const [dateFrom, setDateFrom] = useState('');
@@ -49,11 +61,54 @@ export default function Profile() {
 
   const fetchProfile = () => {
     axios.get('http://127.0.0.1:8000/api/me/', { headers: getHeaders() })
-      .then(res => setUser(res.data))
+      .then(res => {
+        setUser(res.data);
+        // Загружаем текущие данные профиля
+        setProfileData({
+          email: res.data.email || '',
+          phone: res.data.phone || '',
+          address: res.data.address || '',
+          first_name: res.data.first_name || '',
+          last_name: res.data.last_name || '',
+          current_password: '',
+          new_password: ''
+        });
+      })
       .catch(err => {
         localStorage.clear();
         navigate('/login');
       });
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    try {
+      const updateData = {
+        email: profileData.email,
+        phone: profileData.phone,
+        address: profileData.address,
+        first_name: profileData.first_name,
+        last_name: profileData.last_name
+      };
+      
+      if (profileData.new_password) {
+        if (!profileData.current_password) {
+          toast.addToast("Введите текущий пароль для смены пароля", "error");
+          return;
+        }
+        updateData.current_password = profileData.current_password;
+        updateData.new_password = profileData.new_password;
+      }
+      
+      const res = await axios.patch('http://127.0.0.1:8000/api/me/', updateData, { headers: getHeaders() });
+      setUser(res.data);
+      toast.addToast("Профиль успешно обновлен! ✅");
+      setIsEditingProfile(false);
+      setProfileData({...profileData, current_password: '', new_password: ''});
+    } catch (err) {
+      const errMsg = err.response?.data?.detail || Object.values(err.response?.data || {})[0]?.[0] || "Ошибка обновления";
+      toast.addToast(errMsg, "error");
+    }
   };
 
   // ОСНОВНАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ СТАТИСТИКИ
@@ -69,7 +124,7 @@ export default function Profile() {
     axios.get(url, { headers: getHeaders() })
       .then(res => setStats(res.data))
       .catch(err => console.error("Ошибка аналитики", err));
-  };
+  }; 
 
   // Функция для кнопки "Применить"
   const handleApplyFilters = () => {
@@ -141,6 +196,126 @@ export default function Profile() {
             Завершить сеанс →
           </button>
         </header>
+
+        {/* --- РЕДАКТИРОВАНИЕ ПРОФИЛЯ --- */}
+        <section className="mb-16">
+          <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+              <h2 className="text-2xl font-bold uppercase italic tracking-tight">Мой Профиль</h2>
+              <button 
+                onClick={() => setIsEditingProfile(!isEditingProfile)}
+                className={`px-6 py-2 rounded-xl font-bold transition-all shadow-lg text-xs uppercase ${
+                  isEditingProfile 
+                    ? 'bg-slate-700 hover:bg-slate-600 text-white' 
+                    : 'bg-sky-500 hover:bg-sky-400 text-slate-950'
+                }`}
+              >
+                {isEditingProfile ? 'Отмена' : '✎ Редактировать'}
+              </button>
+            </div>
+
+            {isEditingProfile ? (
+              <form onSubmit={handleSaveProfile} className="p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input 
+                    type="text" 
+                    placeholder="Имя" 
+                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    value={profileData.first_name}
+                    onChange={e => setProfileData({...profileData, first_name: e.target.value})}
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Фамилия" 
+                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    value={profileData.last_name}
+                    onChange={e => setProfileData({...profileData, last_name: e.target.value})}
+                  />
+                  <input 
+                    type="email" 
+                    placeholder="Email" 
+                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    value={profileData.email}
+                    onChange={e => setProfileData({...profileData, email: e.target.value})}
+                  />
+                  <input 
+                    type="tel" 
+                    placeholder="Номер телефона" 
+                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    value={profileData.phone}
+                    onChange={e => setProfileData({...profileData, phone: e.target.value})}
+                  />
+                </div>
+                
+                <textarea 
+                  placeholder="Адрес доставки" 
+                  rows="3"
+                  className="w-full bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                  value={profileData.address}
+                  onChange={e => setProfileData({...profileData, address: e.target.value})}
+                ></textarea>
+
+                <div className="bg-slate-950/50 p-6 rounded-2xl border border-slate-800">
+                  <h4 className="text-sm font-bold text-sky-500 mb-4 uppercase">Смена пароля (опционально)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input 
+                      type="password" 
+                      placeholder="Текущий пароль" 
+                      className="bg-slate-900 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                      value={profileData.current_password}
+                      onChange={e => setProfileData({...profileData, current_password: e.target.value})}
+                    />
+                    <input 
+                      type="password" 
+                      placeholder="Новый пароль" 
+                      className="bg-slate-900 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                      value={profileData.new_password}
+                      onChange={e => setProfileData({...profileData, new_password: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button type="submit" className="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-4 rounded-2xl uppercase shadow-lg shadow-sky-500/20 transition-all active:scale-95">
+                    Сохранить изменения
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setIsEditingProfile(false)}
+                    className="flex-1 border border-slate-700 hover:bg-slate-800 font-bold py-4 rounded-2xl uppercase transition-colors"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Имя</p>
+                    <p className="text-xl font-bold">{user.first_name || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Фамилия</p>
+                    <p className="text-xl font-bold">{user.last_name || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Email</p>
+                    <p className="text-lg font-mono text-sky-400">{user.email || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Телефон</p>
+                    <p className="text-lg font-mono">{user.phone || '—'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Адрес доставки</p>
+                    <p className="text-lg leading-relaxed">{user.address || '—'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* --- ПАНЕЛЬ ДИРЕКТОРА С ФИЛЬТРОМ ДАТ --- */}
         {user.role === 'director' && (
