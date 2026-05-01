@@ -4,9 +4,10 @@
 
 ## 📋 Требования
 
-- Python 3.11+
-- Node.js 18+
-- npm или yarn
+- Python 3.11+ (python.org)
+- Node.js 18+ (nodejs.org)
+- PostgreSQL (postgresql.org)
+- npm или yarn (вместе с установкой Python)
 
 ## 🚀 Установка и запуск
 
