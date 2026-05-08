@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { getHeaders, getProductImagesUrls } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
+import API_BASE from '../utils/config';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -18,11 +19,11 @@ export default function ProductDetail() {
     window.scrollTo(0, 0);
     const fetchData = async () => {
       try {
-        const prodRes = await axios.get(`http://127.0.0.1:8000/api/products/${id}/`);
+        const prodRes = await axios.get(`${API_BASE}products/${id}/`);
         setProduct(prodRes.data);
         
         // Загружаем категорию для получения динамических полей
-        const catRes = await axios.get(`http://127.0.0.1:8000/api/categories/${prodRes.data.category}/`);
+        const catRes = await axios.get(`${API_BASE}categories/${prodRes.data.category}/`);
         setCategory(catRes.data);
       } catch (err) {
         console.error("Ошибка загрузки данных", err);
@@ -54,8 +55,8 @@ export default function ProductDetail() {
       return;
     }
     try {
-      const cartRes = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers: getHeaders() });
-      await axios.post(`http://127.0.0.1:8000/api/orders/${cartRes.data.id}/add-item/`, 
+      const cartRes = await axios.get(`${API_BASE}orders/current-cart/`, { headers: getHeaders() });
+      await axios.post(`${API_BASE}orders/${cartRes.data.id}/add-item/`, 
         { product_id: product.id, quantity: 1 }, { headers: getHeaders() }
       );
       toast.addToast("Добавлено в корзину! 📸");

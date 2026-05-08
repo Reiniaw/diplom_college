@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useToast } from '../components/ToastContext';
+import API_BASE from '../utils/config';
 
 export default function Warehouse() {
   const [user, setUser] = useState(null);
@@ -47,13 +48,13 @@ export default function Warehouse() {
 
   const fetchInitialData = async () => {
     try {
-      const userRes = await axios.get('http://127.0.0.1:8000/api/me/', { headers: getHeaders() });
+      const userRes = await axios.get(`${API_BASE}me/`, { headers: getHeaders() });
       setUser(userRes.data);
 
       const [p, c, t] = await Promise.all([
-        axios.get('http://127.0.0.1:8000/api/products/', { headers: getHeaders() }),
-        axios.get('http://127.0.0.1:8000/api/categories/', { headers: getHeaders() }),
-        axios.get('http://127.0.0.1:8000/api/tech-fields/', { headers: getHeaders() })
+        axios.get(`${API_BASE}products/`, { headers: getHeaders() }),
+        axios.get(`${API_BASE}categories/`, { headers: getHeaders() }),
+        axios.get(`${API_BASE}tech-fields/`, { headers: getHeaders() })
       ]);
       setProducts(p.data);
       setCategories(c.data);
@@ -66,7 +67,7 @@ export default function Warehouse() {
     e.preventDefault();
     if (!newCatName.trim()) return;
     try {
-      const response = await axios.post('http://127.0.0.1:8000/api/categories/', 
+      const response = await axios.post(`${API_BASE}categories/`, 
         { name: newCatName, tech_field_ids: newCatTechFields }, 
         { headers: getHeaders() }
       );
@@ -85,7 +86,7 @@ export default function Warehouse() {
     if (e) e.preventDefault();
     if (!newTechField.key.trim() || !newTechField.label.trim()) return;
     try {
-      const response = await axios.post('http://127.0.0.1:8000/api/tech-fields/', newTechField, { headers: getHeaders() });
+      const response = await axios.post(`${API_BASE}tech-fields/`, newTechField, { headers: getHeaders() });
       console.log("Техполе создано:", response.data);
       setAllTechFields([...allTechFields, response.data]);
       setNewCatTechFields([...newCatTechFields, response.data.id]);
@@ -109,7 +110,7 @@ export default function Warehouse() {
     e.stopPropagation(); // Не дает сработать клику по фильтру
     if (window.confirm("Удалить категорию?")) {
       try {
-        await axios.delete(`http://127.0.0.1:8000/api/categories/${id}/`, { headers: getHeaders() });
+        await axios.delete(`${API_BASE}categories/${id}/`, { headers: getHeaders() });
         if (selectedFilter === id) setSelectedFilter(null);
         fetchInitialData();
       } catch (err) { toast.addToast("Не удалось удалить категорию", "error"); }
@@ -145,7 +146,7 @@ export default function Warehouse() {
     // Загружаем существующие изображения
     const existingImages = (product.images || []).map(img => ({
       id: img.id,
-      url: img.image.startsWith('http') ? img.image : `http://127.0.0.1:8000${img.image}`
+      url: img.image.startsWith('http') ? img.image : `${API_BASE}${img.image}`
     }));
     
     // Обновляем всё сразу
@@ -186,11 +187,11 @@ export default function Warehouse() {
       console.log("Изображений:", images.length);
       
       if (editingProduct) {
-        await axios.patch(`http://127.0.0.1:8000/api/products/${editingProduct.id}/`, formData, {
+        await axios.patch(`${API_BASE}products/${editingProduct.id}/`, formData, {
           headers: headersConfig
         });
       } else {
-        await axios.post('http://127.0.0.1:8000/api/products/', formData, {
+        await axios.post(`${API_BASE}products/`, formData, {
           headers: headersConfig
         });
       }
@@ -204,7 +205,7 @@ export default function Warehouse() {
 
   const deleteProduct = async (id) => {
     if (window.confirm("Удалить товар?")) {
-      await axios.delete(`http://127.0.0.1:8000/api/products/${id}/`, { headers: getHeaders() });
+      await axios.delete(`${API_BASE}products/${id}/`, { headers: getHeaders() });
       fetchInitialData();
     }
   };
@@ -307,7 +308,7 @@ export default function Warehouse() {
                       {product.images && product.images.length > 0 ? (
                         <>
                           <img 
-                            src={product.images[0].image.startsWith('http') ? product.images[0].image : `http://127.0.0.1:8000${product.images[0].image}`} 
+                            src={product.images[0].image.startsWith('http') ? product.images[0].image : `${API_BASE}${product.images[0].image}`} 
                             className="w-full h-full object-cover" 
                             alt={product.name} 
                           />

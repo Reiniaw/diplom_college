@@ -8,6 +8,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Warehouse from "./pages/Warehouse";
 import OrdersManager from './pages/OrdersManager';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/warehouse" element={<Warehouse />} />
         <Route path="/orders-manager" element={<OrdersManager />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
   );

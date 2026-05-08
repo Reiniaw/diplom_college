@@ -145,8 +145,8 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
-
-CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True') == 'True'
+# CORS_ALLOW_ALL_ORIGINS разрешён только в dev-режиме
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 AUTH_USER_MODEL = 'shop.User'
 

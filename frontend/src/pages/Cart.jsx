@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { getHeaders, getProductImageUrl } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
+import API_BASE from '../utils/config';
 
 export default function Cart() {
   const [cart, setCart] = useState(null);
@@ -26,7 +27,7 @@ export default function Cart() {
 
   const fetchCart = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers: getHeaders() });
+      const res = await axios.get(`${API_BASE}orders/current-cart/`, { headers: getHeaders() });
       setCart(res.data);
     } catch (err) {
       console.error("Ошибка загрузки корзины");
@@ -39,7 +40,7 @@ export default function Cart() {
     setLoading(true);
     try {
       await axios.patch(
-        `http://127.0.0.1:8000/api/order-items/${itemId}/`,
+        `${API_BASE}order-items/${itemId}/`,
         { quantity: newQuantity },
         { headers: getHeaders() }
       );
@@ -57,7 +58,7 @@ export default function Cart() {
     setLoading(true);
     try {
       await axios.delete(
-        `http://127.0.0.1:8000/api/order-items/${itemId}/`,
+        `${API_BASE}order-items/${itemId}/`,
         { headers: getHeaders() }
       );
       fetchCart(); // Обновляем корзину
@@ -72,7 +73,7 @@ export default function Cart() {
   // --- ЛОГИКА АВТОЗАПОЛНЕНИЯ ---
   const fetchLastOrderInfo = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/orders/', { headers: getHeaders() });
+      const res = await axios.get(`${API_BASE}orders/`, { headers: getHeaders() });
       // Берем самый свежий заказ, который уже был оформлен (не корзину)
       const lastOrder = res.data.find(o => o.status !== 'cart');
       
@@ -108,7 +109,7 @@ export default function Cart() {
         return;
     }
     try {
-      await axios.post(`http://127.0.0.1:8000/api/orders/${cart.id}/checkout/`, shippingInfo, { headers: getHeaders() });
+      await axios.post(`${API_BASE}orders/${cart.id}/checkout/`, shippingInfo, { headers: getHeaders() });
       toast.addToast("Заказ принят!");
       navigate('/profile');
     } catch (err) {

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { getHeaders, getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
+import API_BASE from '../utils/config';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -22,8 +23,8 @@ export default function Home() {
   const fetchData = async () => {
     try {
       const [p, c] = await Promise.all([
-        axios.get('http://127.0.0.1:8000/api/products/'),
-        axios.get('http://127.0.0.1:8000/api/categories/')
+        axios.get(`${API_BASE}products/`),
+        axios.get(`${API_BASE}categories/`)
       ]);
       setProducts(p.data);
       setCategories(c.data);
@@ -54,10 +55,10 @@ export default function Home() {
     }
 
     try {
-      const cartRes = await axios.get('http://127.0.0.1:8000/api/orders/current-cart/', { headers: getHeaders() });
+      const cartRes = await axios.get(`${API_BASE}orders/current-cart/`, { headers: getHeaders() });
       const cartId = cartRes.data.id;
 
-      await axios.post(`http://127.0.0.1:8000/api/orders/${cartId}/add-item/`, 
+      await axios.post(`${API_BASE}orders/${cartId}/add-item/`, 
         { product_id: productId, quantity: 1 },
         { headers: getHeaders() }
       );

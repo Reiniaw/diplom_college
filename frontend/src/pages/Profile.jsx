@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { getHeaders } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
+import API_BASE from '../utils/config';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -48,19 +49,19 @@ export default function Profile() {
       fetchEmployees();
     }
     
-    if (user) {
-      // Личная история заказов
-      axios.get('http://127.0.0.1:8000/api/orders/', { headers: getHeaders() })
-        .then(res => {
-          const personal = res.data.filter(o => o.user === user.id && o.status !== 'cart');
-          setMyOrders(personal);
-        })
-        .catch(err => console.error("Ошибка загрузки истории", err));
-    }
+if (user) {
+  // Личная история заказов
+  axios.get(`${API_BASE}orders/`, { headers: getHeaders() })
+    .then(res => {
+      const personal = res.data.filter(o => o.status !== 'cart');
+      setMyOrders(personal);
+    })
+    .catch(err => console.error("Ошибка загрузки истории", err));
+}
   }, [user]);
 
   const fetchProfile = () => {
-    axios.get('http://127.0.0.1:8000/api/me/', { headers: getHeaders() })
+    axios.get(`${API_BASE}me/`, { headers: getHeaders() })
       .then(res => {
         setUser(res.data);
         // Загружаем текущие данные профиля
@@ -100,7 +101,7 @@ export default function Profile() {
         updateData.new_password = profileData.new_password;
       }
       
-      const res = await axios.patch('http://127.0.0.1:8000/api/me/', updateData, { headers: getHeaders() });
+      const res = await axios.patch(`${API_BASE}me/`, updateData, { headers: getHeaders() });
       setUser(res.data);
       toast.addToast("Профиль успешно обновлен! ✅");
       setIsEditingProfile(false);
@@ -113,7 +114,7 @@ export default function Profile() {
 
   // ОСНОВНАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ СТАТИСТИКИ
   const fetchStats = (dFrom = dateFrom, dTo = dateTo) => {
-    let url = 'http://127.0.0.1:8000/api/director/stats/';
+    let url = `${API_BASE}director/stats/`;
     const params = new URLSearchParams();
     if (dFrom) params.append('date_from', dFrom);
     if (dTo) params.append('date_to', dTo);
@@ -139,7 +140,7 @@ export default function Profile() {
   };
 
   const fetchEmployees = () => {
-    axios.get('http://127.0.0.1:8000/api/users/', { headers: getHeaders() })
+    axios.get(`${API_BASE}users/`, { headers: getHeaders() })
       .then(res => setEmployees(res.data))
       .catch(err => console.error("Ошибка штата"));
   };
@@ -147,7 +148,7 @@ export default function Profile() {
   const handleHire = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://127.0.0.1:8000/api/register/', newEmployee, { headers: getHeaders() });
+      await axios.post(`${API_BASE}register/`, newEmployee, { headers: getHeaders() });
       toast.addToast(`Сотрудник ${newEmployee.username} нанят!`);
       setNewEmployee({ username: '', password: '', role: 'seller' });
       setShowHireForm(false);
@@ -158,7 +159,7 @@ export default function Profile() {
   const handleFire = async (id, username) => {
     if (window.confirm(`Уволить ${username}?`)) {
       try {
-        await axios.delete(`http://127.0.0.1:8000/api/users/${id}/`, { headers: getHeaders() });
+        await axios.delete(`${API_BASE}users/${id}/`, { headers: getHeaders() });
         fetchEmployees();
       } catch (err) { alert("Ошибка удаления"); }
     }
@@ -166,7 +167,7 @@ export default function Profile() {
 
   const handleChangeRole = async (id, newRole) => {
     try {
-      await axios.patch(`http://127.0.0.1:8000/api/users/${id}/`, { role: newRole }, { headers: getHeaders() });
+      await axios.patch(`${API_BASE}users/${id}/`, { role: newRole }, { headers: getHeaders() });
       fetchEmployees();
     } catch (err) { alert("Ошибка роли"); }
   };

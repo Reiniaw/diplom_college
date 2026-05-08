@@ -100,6 +100,7 @@ class Order(models.Model):
     STATUS_CHOICES = [
         (STATUS_CART, 'Cart'),
         (STATUS_PLACED, 'Placed'),
+        ('shipped', 'Shipped'),
         (STATUS_CANCELLED, 'Cancelled'),
     ]
     address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Адрес доставки")

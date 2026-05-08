@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getHeaders, getProductImageUrl } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
+import API_BASE from '../utils/config';
 
 export default function OrdersManager() {
   const [orders, setOrders] = useState([]);
@@ -17,7 +18,7 @@ export default function OrdersManager() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/orders/', { headers: getHeaders() });
+      const res = await axios.get(`${API_BASE}orders/`, { headers: getHeaders() });
       // Убираем из списка корзины, оставляем только реальные заказы
       setOrders(res.data.filter(o => o.status !== 'cart'));
     } catch (err) {
@@ -29,7 +30,7 @@ export default function OrdersManager() {
 
   const updateStatus = async (orderId, newStatus) => {
     try {
-      await axios.patch(`http://127.0.0.1:8000/api/orders/${orderId}/`, 
+      await axios.patch(`${API_BASE}orders/${orderId}/`, 
         { status: newStatus }, 
         { headers: getHeaders() }
       );
@@ -57,13 +58,13 @@ export default function OrdersManager() {
           
           {/* Фильтр по статусам */}
           <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
-            {['all', 'placed', 'cancelled'].map(s => (
+            {['all', 'placed', 'shipped', 'cancelled'].map(s => (
               <button 
                 key={s}
                 onClick={() => setFilterStatus(s)}
                 className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${filterStatus === s ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}
               >
-                {s === 'all' ? 'Все' : s === 'placed' ? 'Оформлены' : 'Отменены'}
+                {s === 'all' ? 'Все' : s === 'placed' ? 'Оформлены' : s === 'shipped' ? 'Отправлены' : 'Отменены'}
               </button>
             ))}
           </div>
@@ -92,6 +93,7 @@ export default function OrdersManager() {
                     className="bg-slate-950 border border-slate-700 p-3 rounded-xl text-xs font-bold uppercase outline-none focus:border-sky-500 transition-colors"
                   >
                     <option value="placed">Оформлен</option>
+                    <option value="shipped">Отправлен</option>
                     <option value="cancelled">Отменен</option>
                     {/* Если добавишь в модели новые статусы (shipped, done), они появятся и тут */}
                   </select>

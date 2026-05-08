@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastContext';
+import API_BASE from '../utils/config';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,7 +14,7 @@ const Login = () => {
     e.preventDefault();
     const endpoint = isLogin ? 'token/' : 'register/';
     try {
-      const res = await axios.post(`http://127.0.0.1:8000/api/${endpoint}`, formData);
+      const res = await axios.post(`${API_BASE}${endpoint}`, formData);
       if (isLogin) {
         localStorage.setItem('access', res.data.access);
         localStorage.setItem('refresh', res.data.refresh);

@@ -56,7 +56,7 @@ export default function Navbar() {
               <Link to="/profile" className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/10 transition-all">
                 <span className="text-xs font-bold uppercase tracking-tighter">{user?.username}</span>
                 <div className="w-6 h-6 bg-sky-500 rounded-lg flex items-center justify-center text-[10px] text-slate-950 font-black">
-                  {user?.role[0].toUpperCase()}
+                  {user?.role?.[0]?.toUpperCase() ?? '?'}
                 </div>
               </Link>
             </>
