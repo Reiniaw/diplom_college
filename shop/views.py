@@ -38,32 +38,6 @@ class DirectorStatsView(APIView):
     permission_classes = [IsDirector]
 
     def get(self, request):
-        # Берем только оформленные заказы (не корзины)
-        placed_orders = Order.objects.filter(status=Order.STATUS_PLACED)
-        
-        # Общая выручка
-        total_sales = placed_orders.aggregate(Sum('total_price'))['total_price__sum'] or 0
-        
-        # Заказы за сегодня
-        today = timezone.now().date()
-        orders_today = placed_orders.filter(created_at__date=today).count()
-
-        # Топ-5 самых продаваемых товаров
-        top_products = OrderItem.objects.filter(order__status=Order.STATUS_PLACED) \
-            .values(name=F('product__name')) \
-            .annotate(total_qty=Sum('quantity')) \
-            .order_by('-total_qty')[:5]
-
-        return Response({
-            "total_sales": float(total_sales),
-            "orders_today": orders_today,
-            "top_products": list(top_products)
-        })
-
-class DirectorStatsView(APIView):
-    permission_classes = [IsDirector]
-
-    def get(self, request):
         # 1. Получаем даты из параметров запроса (?date_from=...&date_to=...)
         date_from = request.query_params.get('date_from')
         date_to = request.query_params.get('date_to')
@@ -83,7 +57,7 @@ class DirectorStatsView(APIView):
         # 4. Общая выручка ЗА ПЕРИОД
         total_sales = placed_orders.aggregate(Sum('total_price'))['total_price__sum'] or 0
         
-        # 5. Количество заказов ЗА ПЕРИОД (вместо заказов за сегодня)
+        # 5. Количество заказов ЗА ПЕРИОД
         orders_count = placed_orders.count()
 
         # 6. Топ-5 товаров ЗА ПЕРИОД
@@ -103,7 +77,6 @@ class DirectorStatsView(APIView):
         # Формируем список для фронтенда
         daily_sales_list = []
         for entry in daily_stats:
-            # Получаем товары именно для этого дня
             day_items = OrderItem.objects.filter(
                 order__status=Order.STATUS_PLACED,
                 order__created_at__date=entry['date']
@@ -118,10 +91,11 @@ class DirectorStatsView(APIView):
 
         return Response({
             "total_sales": float(total_sales),
-            "orders_count": orders_count, # Поменяли название, чтобы было логичнее
+            "orders_count": orders_count,
             "top_products": list(top_products),
             "daily_sales": daily_sales_list
         })
+
 class IsStaffOrDirector(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['seller', 'manager', 'director']
@@ -149,23 +123,20 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('category').all()
     serializer_class = ProductSerializer
-    parser_classes = (parsers.MultiPartParser, parsers.FormParser)
+    parser_classes = (parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser)
     
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'delete_image']:
             return [IsStaffOrDirector()]
         return [AllowAny()]
     
     def create(self, request, *args, **kwargs):
-        # Обработка множественных изображений при создании
         images = request.FILES.getlist('images', [])
         
-        # Извлекаем images из request.data для serializer
         data = request.data.copy()
         if 'images' in data:
             del data['images']
         
-        # Извлекаем tech_values
         tech_values_data = {}
         category_id = data.get('category')
         if category_id:
@@ -173,7 +144,9 @@ class ProductViewSet(viewsets.ModelViewSet):
                 category = Category.objects.get(id=category_id)
                 for tech_field in category.tech_fields.all():
                     if tech_field.key in data:
-                        tech_values_data[tech_field.id] = data.pop(tech_field.key)
+                        # ФИX: берём первое значение из списка QueryDict
+                        raw = data.pop(tech_field.key)
+                        tech_values_data[tech_field.id] = raw[0] if isinstance(raw, list) else raw
             except Category.DoesNotExist:
                 pass
         
@@ -181,34 +154,29 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
         
-        # Сохраняем tech_values
         for tech_field_id, value in tech_values_data.items():
-            if value:  # Сохраняем только если значение не пустое
+            if value:
                 ProductTechValue.objects.create(
                     product=product,
                     tech_field_id=tech_field_id,
                     value=value
                 )
         
-        # Сохраняем изображения
         for image_file in images:
             ProductImage.objects.create(product=product, image=image_file)
         
         return Response(ProductSerializer(product).data, status=201)
     
     def update(self, request, *args, **kwargs):
-        # Обработка множественных изображений при обновлении
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         
         images = request.FILES.getlist('images', [])
         
-        # Извлекаем images из request.data для serializer
         data = request.data.copy()
         if 'images' in data:
             del data['images']
         
-        # Извлекаем tech_values
         tech_values_data = {}
         category_id = data.get('category', instance.category_id)
         if category_id:
@@ -216,7 +184,9 @@ class ProductViewSet(viewsets.ModelViewSet):
                 category = Category.objects.get(id=category_id)
                 for tech_field in category.tech_fields.all():
                     if tech_field.key in data:
-                        tech_values_data[tech_field.id] = data.pop(tech_field.key)
+                        # ФИX: берём первое значение из списка QueryDict, избегаем экранирования
+                        raw = data.pop(tech_field.key)
+                        tech_values_data[tech_field.id] = raw[0] if isinstance(raw, list) else raw
             except Category.DoesNotExist:
                 pass
         
@@ -224,7 +194,6 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
         
-        # Обновляем tech_values
         for tech_field_id, value in tech_values_data.items():
             tech_value, created = ProductTechValue.objects.get_or_create(
                 product=product,
@@ -235,11 +204,27 @@ class ProductViewSet(viewsets.ModelViewSet):
                 tech_value.value = value
                 tech_value.save()
         
-        # Если переданы новые изображения, добавляем их (а старые оставляем)
         for image_file in images:
             ProductImage.objects.create(product=product, image=image_file)
         
         return Response(ProductSerializer(product).data)
+
+    # ФИX: новый экшен для удаления конкретного фото
+    @action(detail=True, methods=['delete'], url_path='images/(?P<image_id>[^/.]+)')
+    def delete_image(self, request, pk=None, image_id=None):
+        """DELETE /api/products/{product_id}/images/{image_id}/ — удаляет одно фото товара"""
+        try:
+            product = self.get_object()
+            image = ProductImage.objects.get(id=image_id, product=product)
+            # Удаляем файл с диска
+            image.image.delete(save=False)
+            image.delete()
+            return Response({'detail': 'Фото удалено'}, status=204)
+        except ProductImage.DoesNotExist:
+            return Response({'detail': 'Фото не найдено'}, status=404)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
 
 # --- ПРОФИЛЬ И HR ---
 class RegisterAPIView(generics.CreateAPIView):
@@ -273,10 +258,8 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        # Если зашел Директор, Менеджер или Продавец — отдаем все заказы магазина
         if user.role in ['director', 'manager', 'seller']:
             return Order.objects.all()
-        # Обычный клиент видит только свои
         return Order.objects.filter(user=user)
 
     @action(detail=True, methods=['post'], url_path='add-item')
@@ -287,11 +270,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         product = Product.objects.get(pk=ser.validated_data['product_id'])
         quantity = ser.validated_data['quantity']
         
-        # Проверяем наличие товара
         if not product.is_in_stock():
             return Response({'detail': 'Товар нет в наличии'}, status=400)
         
-        # Проверяем достаточность количества
         if product.stock < quantity:
             return Response({'detail': f'Недостаточно товара. Доступно: {product.stock}'}, status=400)
         
@@ -300,7 +281,6 @@ class OrderViewSet(viewsets.ModelViewSet):
             defaults={'quantity': quantity, 'price': product.price, 'total_price': product.price * quantity}
         )
         if not created:
-            # Проверяем достаточность при увеличении количества
             if product.stock < item.quantity + quantity:
                 return Response({'detail': f'Недостаточно товара. Доступно: {product.stock}'}, status=400)
             item.quantity += quantity
@@ -310,13 +290,8 @@ class OrderViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['patch'], url_path='change-status')
     def change_status(self, request, pk=None):
-        """
-        PATCH /api/orders/{pk}/change-status/
-        body: {"status": "placed"} или {"status": "cancelled"}
-        """
         order = self.get_object()
         
-        # Проверяем, что это не обычный клиент
         if request.user.role not in ['manager', 'director', 'seller']:
             return Response({'detail': 'У вас нет прав для смены статуса'}, status=403)
             
@@ -324,7 +299,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         if new_status not in dict(Order.STATUS_CHOICES):
             return Response({'detail': 'Неверный статус'}, status=400)
         
-        # Если заказ был размещен и теперь отменяется, возвращаем товары на склад
         if order.status == Order.STATUS_PLACED and new_status == Order.STATUS_CANCELLED:
             for item in order.items.all():
                 item.product.stock += item.quantity
@@ -336,7 +310,6 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='current-cart')
     def current_cart(self, request):
-        """Получить текущую корзину пользователя или создать новую"""
         order, created = Order.objects.get_or_create(
             user=request.user, 
             status=Order.STATUS_CART,
@@ -344,17 +317,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         )
         serializer = OrderSerializer(order, context={'request': request})
         return Response(serializer.data)
-    
-    @action(detail=False, methods=['get'], url_path='current-cart')
-    def current_cart(self, request):
-        order, created = Order.objects.get_or_create(
-            user=request.user, 
-            status='cart',
-            defaults={'total_price': 0}
-        )
-        serializer = OrderSerializer(order, context={'request': request})
-        return Response(serializer.data)
-
 
     @action(detail=True, methods=['post'], url_path='checkout')
     def checkout(self, request, pk=None):
@@ -362,19 +324,16 @@ class OrderViewSet(viewsets.ModelViewSet):
         if order.status != Order.STATUS_CART:
             return Response({'detail': 'Order already placed'}, status=400)
         
-        # Проверяем наличие товара для всех позиций
         for item in order.items.all():
             if not item.product.is_in_stock():
                 return Response({'detail': f'Товар "{item.product.name}" нет в наличии'}, status=400)
             if item.product.stock < item.quantity:
                 return Response({'detail': f'Недостаточно товара "{item.product.name}". Доступно: {item.product.stock}'}, status=400)
         
-        # Уменьшаем количество товаров при оформлении заказа
         for item in order.items.all():
             item.product.stock -= item.quantity
             item.product.save(update_fields=['stock'])
         
-        # Сохраняем данные из формы
         order.address = request.data.get('address')
         order.phone = request.data.get('phone')
         order.delivery_time = request.data.get('delivery_time')
@@ -399,7 +358,6 @@ class OrderItemViewSet(viewsets.ModelViewSet):
         """PATCH /api/order-items/{id}/ - обновить количество товара"""
         try:
             item = OrderItem.objects.get(pk=pk)
-            # Проверяем, что товар в корзине текущего пользователя
             if item.order.user != request.user:
                 return Response({'detail': 'Доступ запрещен'}, status=403)
             
@@ -415,7 +373,6 @@ class OrderItemViewSet(viewsets.ModelViewSet):
             if new_quantity < 1:
                 return Response({'detail': 'Количество должно быть больше 0'}, status=400)
             
-            # Проверяем наличие товара в нужном количестве
             if item.product.stock < new_quantity:
                 return Response({'detail': f'Недостаточно товара. Доступно: {item.product.stock}'}, status=400)
             
@@ -423,7 +380,6 @@ class OrderItemViewSet(viewsets.ModelViewSet):
             item.total_price = item.price * item.quantity
             item.save()
             
-            # Пересчитываем общую стоимость заказа
             item.order.recalc_total()
             
             serializer = OrderItemSerializer(item, context={'request': request})
@@ -439,14 +395,11 @@ class OrderItemViewSet(viewsets.ModelViewSet):
         """DELETE /api/order-items/{id}/ - удалить товар из заказа"""
         try:
             item = OrderItem.objects.get(pk=pk)
-            # Проверяем, что товар в корзине текущего пользователя
             if item.order.user != request.user:
                 return Response({'detail': 'Доступ запрещен'}, status=403)
             
             order = item.order
             item.delete()
-            
-            # Пересчитываем общую стоимость заказа
             order.recalc_total()
             
             return Response({'detail': 'Товар удален'}, status=204)
@@ -456,5 +409,3 @@ class OrderItemViewSet(viewsets.ModelViewSet):
             import traceback
             traceback.print_exc()
             return Response({'detail': f'Ошибка: {str(e)}'}, status=500)
-        except Exception as e:
-            return Response({'detail': str(e)}, status=400)

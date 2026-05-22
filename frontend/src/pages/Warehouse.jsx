@@ -9,36 +9,32 @@ export default function Warehouse() {
   const [categories, setCategories] = useState([]);
   const [allTechFields, setAllTechFields] = useState([]);
   
-  // Стейты для категорий и фильтрации
   const [newCatName, setNewCatName] = useState('');
   const [newCatTechFields, setNewCatTechFields] = useState([]);
   const [selectedFilter, setSelectedFilter] = useState(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   
-  // Стейты для создания нового техполя
   const [newTechField, setNewTechField] = useState({ key: '', label: '' });
   const [isAddingTechField, setIsAddingTechField] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   
-  // Расширен стейт для динамических характеристик
   const [newProduct, setNewProduct] = useState({ 
     name: '', price: '', stock: '', category: '', description: '',
     megapixels: '', sensor_type: '', video_resolution: '', weight: '',
     power: '', frequency: '', battery_life: '', connection: ''
   });
-  const [images, setImages] = useState([]); // Несколько изображений
-  const [imagePreviews, setImagePreviews] = useState([]); // Превью существующих
+  const [images, setImages] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
+  // ФИX: отдельно храним ID фото, которые нужно удалить на бэкенде
+  const [imageIdsToDelete, setImageIdsToDelete] = useState([]);
 
   const toast = useToast();
 
   const getHeaders = () => {
     const token = localStorage.getItem('access');
-    console.log("Token from localStorage:", token);
-    if (!token) {
-      console.warn("❌ Токена нет в localStorage!");
-    }
+    if (!token) console.warn("❌ Токена нет в localStorage!");
     return { Authorization: `Bearer ${token}` };
   };
 
@@ -62,22 +58,20 @@ export default function Warehouse() {
     } catch (err) { console.error("Ошибка загрузки данных", err); }
   };
 
-  // --- НОВАЯ ЛОГИКА КАТЕГОРИЙ ---
+  // --- КАТЕГОРИИ ---
   const handleAddCategory = async (e) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
     try {
-      const response = await axios.post(`${API_BASE}categories/`, 
+      await axios.post(`${API_BASE}categories/`, 
         { name: newCatName, tech_field_ids: newCatTechFields }, 
         { headers: getHeaders() }
       );
-      console.log("Категория создана:", response.data);
       setNewCatName('');
       setNewCatTechFields([]);
       setIsCategoryModalOpen(false);
       fetchInitialData();
     } catch (err) { 
-      console.error("Ошибка создания категории:", err);
       toast.addToast("Ошибка при создании категории: " + (err.response?.data?.name?.[0] || err.message), "error"); 
     }
   };
@@ -87,27 +81,23 @@ export default function Warehouse() {
     if (!newTechField.key.trim() || !newTechField.label.trim()) return;
     try {
       const response = await axios.post(`${API_BASE}tech-fields/`, newTechField, { headers: getHeaders() });
-      console.log("Техполе создано:", response.data);
       setAllTechFields([...allTechFields, response.data]);
       setNewCatTechFields([...newCatTechFields, response.data.id]);
       setNewTechField({ key: '', label: '' });
       setIsAddingTechField(false);
     } catch (err) { 
-      console.error("Ошибка создания техполя:", err);
       toast.addToast("Ошибка при создании поля: " + err.message, "error"); 
     }
   };
 
   const toggleTechField = (fieldId) => {
     setNewCatTechFields(prev => 
-      prev.includes(fieldId) 
-        ? prev.filter(f => f !== fieldId)
-        : [...prev, fieldId]
+      prev.includes(fieldId) ? prev.filter(f => f !== fieldId) : [...prev, fieldId]
     );
   };
 
   const deleteCategory = async (e, id) => {
-    e.stopPropagation(); // Не дает сработать клику по фильтру
+    e.stopPropagation();
     if (window.confirm("Удалить категорию?")) {
       try {
         await axios.delete(`${API_BASE}categories/${id}/`, { headers: getHeaders() });
@@ -117,9 +107,8 @@ export default function Warehouse() {
     }
   };
 
-  // --- ЛОГИКА ТОВАРОВ ---
+  // --- ТОВАРЫ ---
   const startEdit = (product) => {
-    // Создаем объект с базовыми значениями
     const updatedProduct = {
       name: product.name || '',
       price: product.price || '',
@@ -136,67 +125,89 @@ export default function Warehouse() {
       connection: product.connection || ''
     };
     
-    // Добавляем tech_values к этому же объекту
+    // ФИX: значения характеристик берём как есть (строки), не оборачиваем
     if (product.tech_values) {
       product.tech_values.forEach(tv => {
         updatedProduct[tv.tech_field.key] = tv.value || '';
       });
     }
     
-    // Загружаем существующие изображения
     const existingImages = (product.images || []).map(img => ({
       id: img.id,
       url: img.image.startsWith('http') ? img.image : `${API_BASE}${img.image}`
     }));
     
-    // Обновляем всё сразу
     setEditingProduct(product);
     setNewProduct(updatedProduct);
     setImagePreviews(existingImages);
     setImages([]);
+    setImageIdsToDelete([]); // ФИX: сбрасываем список удаляемых фото
     setIsModalOpen(true);
+  };
+
+  // ФИX: функция удаления фото из превью + запоминаем ID для удаления на бэкенде
+  const handleRemoveExistingImage = (img, idx) => {
+    setImagePreviews(prev => prev.filter((_, i) => i !== idx));
+    // Если у фото есть ID — ставим его в очередь на удаление
+    if (img.id) {
+      setImageIdsToDelete(prev => [...prev, img.id]);
+    }
   };
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
-    const formData = new FormData();
-    
-    if (user.role === 'seller') {
-      // Продавец меняет цену и количество
-      formData.append('price', newProduct.price);
-      formData.append('stock', newProduct.stock);
-    } else {
-      // Админы меняют всё. Проходимся по всем ключам, чтобы подхватить динамические поля
-      Object.keys(newProduct).forEach(key => {
-        // Всегда отправляем поле, даже если оно пустое, чтобы обновить на null
-        formData.append(key, newProduct[key] || '');
-      });
-      // Добавляем новые изображения
-      images.forEach((img, index) => {
-        formData.append(`images`, img);
-      });
-    }
 
     try {
-      const headersConfig = {
-        ...getHeaders(),
-      };
+      const headersConfig = { ...getHeaders() };
       delete headersConfig['Content-Type'];
-      
-      console.log("Отправляю запрос с headers:", headersConfig);
-      console.log("Изображений:", images.length);
-      
+
       if (editingProduct) {
+        // ФИX: сначала удаляем фото, которые пользователь убрал
+        if (imageIdsToDelete.length > 0) {
+          await Promise.all(
+            imageIdsToDelete.map(imageId =>
+              axios.delete(
+                `${API_BASE}products/${editingProduct.id}/images/${imageId}/`,
+                { headers: headersConfig }
+              ).catch(err => console.warn(`Не удалось удалить фото ${imageId}:`, err))
+            )
+          );
+        }
+
+        // Обновляем товар
+        const formData = new FormData();
+
+        if (user.role === 'seller') {
+          formData.append('price', newProduct.price);
+          formData.append('stock', newProduct.stock);
+        } else {
+          Object.keys(newProduct).forEach(key => {
+            // ФИX: отправляем значения как простые строки (не объекты/массивы)
+            formData.append(key, String(newProduct[key] || ''));
+          });
+          images.forEach(img => formData.append('images', img));
+        }
+
         await axios.patch(`${API_BASE}products/${editingProduct.id}/`, formData, {
           headers: headersConfig
         });
+
       } else {
+        // Создание нового товара
+        const formData = new FormData();
+        Object.keys(newProduct).forEach(key => {
+          formData.append(key, String(newProduct[key] || ''));
+        });
+        images.forEach(img => formData.append('images', img));
+
         await axios.post(`${API_BASE}products/`, formData, {
           headers: headersConfig
         });
       }
+
       closeModal();
       fetchInitialData();
+      toast.addToast("Товар сохранён успешно", "success");
     } catch (err) { 
       console.error("Ошибка сохранения:", err);
       toast.addToast("Ошибка сохранения. Проверьте данные.", "error"); 
@@ -220,6 +231,7 @@ export default function Warehouse() {
     });
     setImages([]);
     setImagePreviews([]);
+    setImageIdsToDelete([]);
   };
 
   // --- ДИНАМИЧЕСКИЕ ПОЛЯ ---
@@ -228,13 +240,13 @@ export default function Warehouse() {
     if (!cat || !cat.tech_fields || cat.tech_fields.length === 0) return null;
 
     return (
-      <div className="grid grid-cols-2 gap-4 mt-4 p-4 bg-slate-950/50 rounded-2xl border border-sky-500/20">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 p-4 bg-slate-950/50 rounded-2xl border border-sky-500/20">
         {cat.tech_fields.map(field => (
           <input 
             key={field.id}
             type="text" 
             placeholder={field.label} 
-            className="bg-slate-800 p-4 rounded-xl outline-none" 
+            className="bg-slate-800 p-4 rounded-xl outline-none text-sm" 
             value={newProduct[field.key] || ''} 
             onChange={e => setNewProduct({...newProduct, [field.key]: e.target.value})} 
           />
@@ -248,20 +260,25 @@ export default function Warehouse() {
   const isFullAdmin = ['director', 'manager'].includes(user.role);
 
   return (
-    <div className="min-h-screen bg-slate-950 p-8 text-white">
+    <div className="min-h-screen bg-slate-950 p-4 sm:p-8 text-white">
       <div className="max-w-6xl mx-auto">
-        <header className="flex justify-between items-center mb-12">
-          <h1 className="text-4xl font-black uppercase italic tracking-tighter">Складской учет</h1>
+
+        {/* ШАПКА */}
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl font-black uppercase italic tracking-tighter">Складской учет</h1>
           {isFullAdmin && (
-            <button onClick={() => setIsModalOpen(true)} className="bg-sky-500 text-slate-950 px-8 py-3 rounded-2xl font-bold hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/20">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="w-full sm:w-auto bg-sky-500 text-slate-950 px-8 py-3 rounded-2xl font-bold hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/20"
+            >
               + Добавить товар
             </button>
           )}
         </header>
 
-        {/* Секция категорий (Фильтр и Создание) */}
-        <section className="mb-12 bg-slate-900/50 p-6 rounded-3xl border border-slate-800">
-          <div className="flex flex-wrap gap-3 mb-6">
+        {/* КАТЕГОРИИ */}
+        <section className="mb-8 sm:mb-12 bg-slate-900/50 p-4 sm:p-6 rounded-3xl border border-slate-800">
+          <div className="flex flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6">
             <button 
               onClick={() => setSelectedFilter(null)}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${!selectedFilter ? 'bg-white text-black' : 'bg-slate-800 text-slate-400'}`}
@@ -284,27 +301,23 @@ export default function Warehouse() {
           
           {isFullAdmin && (
             <button 
-              onClick={() => {
-                setNewCatName('');
-                setNewCatTechFields([]);
-                setIsCategoryModalOpen(true);
-              }}
-              className="bg-slate-100 text-black px-6 py-3 rounded-xl font-bold hover:bg-white transition-colors"
+              onClick={() => { setNewCatName(''); setNewCatTechFields([]); setIsCategoryModalOpen(true); }}
+              className="bg-slate-100 text-black px-6 py-3 rounded-xl font-bold hover:bg-white transition-colors text-sm"
             >
               + Новая категория
             </button>
           )}
         </section>
 
-        {/* Список товаров (с применением фильтра) */}
-        <div className="space-y-12">
+        {/* СПИСОК ТОВАРОВ */}
+        <div className="space-y-8 sm:space-y-12">
           {categories.filter(c => !selectedFilter || c.id === selectedFilter).map(cat => (
             <div key={cat.id} className="space-y-4">
-              <h2 className="text-2xl font-bold border-l-4 border-sky-500 pl-4 uppercase tracking-tight">{cat.name}</h2>
+              <h2 className="text-xl sm:text-2xl font-bold border-l-4 border-sky-500 pl-4 uppercase tracking-tight">{cat.name}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {products.filter(p => p.category === cat.id).map(product => (
-                  <div key={product.id} className="bg-slate-900 border border-slate-800 p-4 rounded-3xl flex items-center gap-6 group">
-                    <div className="w-20 h-20 bg-slate-800 rounded-2xl overflow-hidden flex-shrink-0 relative group/image">
+                  <div key={product.id} className="bg-slate-900 border border-slate-800 p-4 rounded-3xl flex items-center gap-4 sm:gap-6 group">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-800 rounded-2xl overflow-hidden flex-shrink-0 relative">
                       {product.images && product.images.length > 0 ? (
                         <>
                           <img 
@@ -313,26 +326,26 @@ export default function Warehouse() {
                             alt={product.name} 
                           />
                           {product.images.length > 1 && (
-                            <div className="absolute top-1 right-1 bg-sky-500 text-white text-xs px-2 py-1 rounded font-bold">
+                            <div className="absolute top-1 right-1 bg-sky-500 text-white text-xs px-1.5 py-0.5 rounded font-bold">
                               +{product.images.length - 1}
                             </div>
                           )}
                         </>
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-600">Нет фото</div>
+                        <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs text-center p-1">Нет фото</div>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold">{product.name}</h3>
-                      <p className="text-sky-400 font-mono text-xl">{product.price} ₸</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base sm:text-lg font-bold truncate">{product.name}</h3>
+                      <p className="text-sky-400 font-mono text-lg sm:text-xl">{product.price} ₸</p>
                       <p className={`text-sm font-bold ${product.is_in_stock ? 'text-green-400' : 'text-red-400'}`}>
                         Кол-во: {product.stock}
                       </p>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <button onClick={() => startEdit(product)} className="p-3 bg-slate-800 rounded-xl hover:bg-sky-500 hover:text-black transition-all">✎</button>
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      <button onClick={() => startEdit(product)} className="p-3 bg-slate-800 rounded-xl hover:bg-sky-500 hover:text-black transition-all text-sm">✎</button>
                       {isFullAdmin && (
-                        <button onClick={() => deleteProduct(product.id)} className="p-3 bg-slate-800 rounded-xl hover:bg-rose-500 transition-all">✕</button>
+                        <button onClick={() => deleteProduct(product.id)} className="p-3 bg-slate-800 rounded-xl hover:bg-rose-500 transition-all text-sm">✕</button>
                       )}
                     </div>
                   </div>
@@ -342,17 +355,23 @@ export default function Warehouse() {
           ))}
         </div>
 
-        {/* Модальное окно */}
+        {/* МОДАЛЬНОЕ ОКНО ТОВАРА */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <form onSubmit={handleSaveProduct} className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] max-w-2xl w-full my-8 space-y-6">
-              <div className="flex items-center justify-between">
+          <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-start justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+            <form
+              onSubmit={handleSaveProduct}
+              className="bg-slate-900 border border-slate-800 p-5 sm:p-8 rounded-[2rem] sm:rounded-[3rem] max-w-2xl w-full my-4 sm:my-8 space-y-5"
+            >
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-3xl font-bold italic uppercase">{editingProduct ? '✎ Редактирование товара' : '➕ Новый товар'}</h2>
+                  <h2 className="text-2xl sm:text-3xl font-bold italic uppercase">
+                    {editingProduct ? '✎ Редактирование товара' : '➕ Новый товар'}
+                  </h2>
                   {editingProduct && (
-                    <p className="text-slate-500 text-sm mt-2">ID: #{editingProduct.id} | {editingProduct.name}</p>
+                    <p className="text-slate-500 text-sm mt-1">ID: #{editingProduct.id} | {editingProduct.name}</p>
                   )}
                 </div>
+                <button type="button" onClick={closeModal} className="text-slate-500 hover:text-white text-2xl flex-shrink-0">✕</button>
               </div>
               
               {user.role === 'seller' ? (
@@ -362,12 +381,12 @@ export default function Warehouse() {
                     <span className="text-[10px] text-slate-500 uppercase tracking-widest block mb-2">Объект изменения</span>
                     <span className="text-xl font-black">{editingProduct?.name}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 space-y-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <label className="text-sky-500 text-xs font-bold uppercase ml-2">Новая цена (₸)</label>
                       <input 
                         type="number" required
-                        className="w-full bg-slate-950 p-6 rounded-3xl outline-none border-2 border-sky-500 text-2xl font-mono text-center"
+                        className="w-full bg-slate-950 p-5 sm:p-6 rounded-3xl outline-none border-2 border-sky-500 text-xl sm:text-2xl font-mono text-center"
                         value={newProduct.price}
                         onChange={e => setNewProduct({...newProduct, price: e.target.value})}
                       />
@@ -376,7 +395,7 @@ export default function Warehouse() {
                       <label className="text-sky-500 text-xs font-bold uppercase ml-2">Кол-во товаров</label>
                       <input 
                         type="number" required
-                        className="w-full bg-slate-950 p-6 rounded-3xl outline-none border-2 border-sky-500 text-2xl font-mono text-center"
+                        className="w-full bg-slate-950 p-5 sm:p-6 rounded-3xl outline-none border-2 border-sky-500 text-xl sm:text-2xl font-mono text-center"
                         value={newProduct.stock}
                         onChange={e => setNewProduct({...newProduct, stock: e.target.value})}
                       />
@@ -388,37 +407,72 @@ export default function Warehouse() {
                 <div className="space-y-4">
                   {editingProduct && (
                     <div className="bg-slate-950/50 border border-sky-500/30 p-4 rounded-2xl">
-                      <p className="text-[10px] text-sky-400 uppercase tracking-widest mb-2">📝 Редактирование существующего товара</p>
+                      <p className="text-[10px] text-sky-400 uppercase tracking-widest mb-1">📝 Редактирование существующего товара</p>
                       <p className="text-slate-400 text-sm">Все поля заполнены текущими значениями. Измените то, что нужно.</p>
                     </div>
                   )}
-                  <input type="text" placeholder="Наименование" required className="w-full bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                  <div className="grid grid-cols-3 gap-4">
-                    <input type="number" placeholder="Цена" required className="bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-                    <input type="number" placeholder="Кол-во" required className="bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
-                    <select className="bg-slate-800 p-4 rounded-2xl outline-none" value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})}>
+
+                  <input
+                    type="text" placeholder="Наименование" required
+                    className="w-full bg-slate-800 p-4 rounded-2xl outline-none text-sm sm:text-base"
+                    value={newProduct.name}
+                    onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                  />
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <input
+                      type="number" placeholder="Цена" required
+                      className="bg-slate-800 p-4 rounded-2xl outline-none text-sm"
+                      value={newProduct.price}
+                      onChange={e => setNewProduct({...newProduct, price: e.target.value})}
+                    />
+                    <input
+                      type="number" placeholder="Кол-во" required
+                      className="bg-slate-800 p-4 rounded-2xl outline-none text-sm"
+                      value={newProduct.stock}
+                      onChange={e => setNewProduct({...newProduct, stock: e.target.value})}
+                    />
+                    <select
+                      className="col-span-2 sm:col-span-1 bg-slate-800 p-4 rounded-2xl outline-none text-sm"
+                      value={newProduct.category}
+                      onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                    >
                       <option value="">Категория</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   
-                  {/* Вызов функции для рендера специфичных характеристик */}
+                  {/* Динамические характеристики */}
                   {renderTechFields()}
 
-                  <textarea placeholder="Описание" rows="3" className="w-full bg-slate-800 p-4 rounded-2xl outline-none mt-4" value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})}></textarea>
+                  <textarea
+                    placeholder="Описание" rows="3"
+                    className="w-full bg-slate-800 p-4 rounded-2xl outline-none text-sm resize-none"
+                    value={newProduct.description}
+                    onChange={e => setNewProduct({...newProduct, description: e.target.value})}
+                  />
                   
-                  {/* Существующие изображения */}
+                  {/* ФИX: Существующие фото с реальным удалением */}
                   {imagePreviews.length > 0 && (
-                    <div className="mt-4">
-                      <label className="text-slate-400 text-xs uppercase mb-2 block">Текущие фото:</label>
+                    <div>
+                      <label className="text-slate-400 text-xs uppercase mb-2 block">
+                        Текущие фото:
+                        {imageIdsToDelete.length > 0 && (
+                          <span className="text-rose-400 ml-2 normal-case">({imageIdsToDelete.length} будет удалено при сохранении)</span>
+                        )}
+                      </label>
                       <div className="flex flex-wrap gap-3">
                         {imagePreviews.map((img, idx) => (
                           <div key={img.id || idx} className="relative group">
-                            <img src={img.url} alt="preview" className="w-24 h-24 object-cover rounded-lg border border-slate-700" />
+                            <img
+                              src={img.url} alt="preview"
+                              className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-slate-700"
+                            />
                             <button 
                               type="button"
-                              onClick={() => setImagePreviews(imagePreviews.filter((_, i) => i !== idx))}
-                              className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm font-bold"
+                              onClick={() => handleRemoveExistingImage(img, idx)}
+                              className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm font-bold shadow-lg"
+                              title="Удалить фото"
                             >
                               ✕
                             </button>
@@ -429,17 +483,14 @@ export default function Warehouse() {
                   )}
 
                   {/* Загрузка новых изображений */}
-                  <div className="mt-4 p-4 bg-slate-800 rounded-2xl border border-dashed border-slate-700">
+                  <div className="p-4 bg-slate-800 rounded-2xl border border-dashed border-slate-700">
                     <label className="text-slate-400 text-xs uppercase mb-2 block">Добавить фото:</label>
                     <input 
                       type="file" 
                       multiple
                       accept="image/*"
-                      onChange={e => {
-                        const newFiles = Array.from(e.target.files || []);
-                        setImages([...images, ...newFiles]);
-                      }} 
-                      className="text-sm w-full"
+                      onChange={e => setImages([...images, ...Array.from(e.target.files || [])])}
+                      className="text-sm w-full text-slate-300"
                     />
                     {images.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-3">
@@ -448,7 +499,7 @@ export default function Warehouse() {
                             <img 
                               src={URL.createObjectURL(img)} 
                               alt="new" 
-                              className="w-24 h-24 object-cover rounded-lg border border-slate-600" 
+                              className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-slate-600" 
                             />
                             <button 
                               type="button"
@@ -465,9 +516,9 @@ export default function Warehouse() {
                 </div>
               )}
 
-              <div className="flex gap-4 pt-4">
-                <button type="submit" className="flex-1 bg-sky-500 text-slate-950 font-black py-5 rounded-3xl uppercase hover:scale-105 transition-transform">Сохранить</button>
-                <button type="button" onClick={closeModal} className="flex-1 border border-slate-700 font-bold py-5 rounded-3xl uppercase hover:bg-slate-800 transition-colors">Отмена</button>
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button type="submit" className="flex-1 bg-sky-500 text-slate-950 font-black py-4 sm:py-5 rounded-3xl uppercase hover:scale-105 transition-transform text-sm sm:text-base">Сохранить</button>
+                <button type="button" onClick={closeModal} className="flex-1 border border-slate-700 font-bold py-4 sm:py-5 rounded-3xl uppercase hover:bg-slate-800 transition-colors text-sm sm:text-base">Отмена</button>
               </div>
             </form>
           </div>
@@ -475,21 +526,21 @@ export default function Warehouse() {
 
         {/* МОДАЛЬНОЕ ОКНО КАТЕГОРИЙ */}
         {isCategoryModalOpen && (
-          <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <form onSubmit={handleAddCategory} className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] max-w-2xl w-full my-8 space-y-6">
-              <h2 className="text-3xl font-bold italic uppercase">Новая категория</h2>
+          <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-start justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+            <form onSubmit={handleAddCategory} className="bg-slate-900 border border-slate-800 p-5 sm:p-8 rounded-[2rem] sm:rounded-[3rem] max-w-2xl w-full my-4 sm:my-8 space-y-6">
+              <h2 className="text-2xl sm:text-3xl font-bold italic uppercase">Новая категория</h2>
               
               <div className="space-y-4">
                 <input 
                   type="text" 
                   placeholder="Название категории" 
                   required
-                  className="w-full bg-slate-800 p-4 rounded-2xl outline-none" 
+                  className="w-full bg-slate-800 p-4 rounded-2xl outline-none text-sm sm:text-base" 
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                 />
                 
-                <div className="bg-slate-800 p-6 rounded-2xl space-y-4">
+                <div className="bg-slate-800 p-4 sm:p-6 rounded-2xl space-y-4">
                   <div className="flex justify-between items-center">
                     <label className="text-sky-500 text-xs font-bold uppercase">Технические характеристики</label>
                     <button 
@@ -538,7 +589,7 @@ export default function Warehouse() {
                     </div>
                   )}
                   
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
                     {allTechFields.length === 0 ? (
                       <div className="text-slate-400 text-sm py-4 text-center">Нет доступных полей. Создайте новое!</div>
                     ) : (
@@ -548,7 +599,7 @@ export default function Warehouse() {
                             type="checkbox" 
                             checked={newCatTechFields.includes(field.id)}
                             onChange={() => toggleTechField(field.id)}
-                            className="w-5 h-5 rounded border-slate-600 accent-sky-500"
+                            className="w-5 h-5 rounded border-slate-600 accent-sky-500 flex-shrink-0"
                           />
                           <span className="text-slate-300 text-sm">{field.label}</span>
                           <span className="text-slate-500 text-xs ml-auto">{field.key}</span>
@@ -559,9 +610,9 @@ export default function Warehouse() {
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-4">
-                <button type="submit" className="flex-1 bg-sky-500 text-slate-950 font-black py-5 rounded-3xl uppercase hover:scale-105 transition-transform">Создать</button>
-                <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="flex-1 border border-slate-700 font-bold py-5 rounded-3xl uppercase hover:bg-slate-800 transition-colors">Отмена</button>
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button type="submit" className="flex-1 bg-sky-500 text-slate-950 font-black py-4 sm:py-5 rounded-3xl uppercase hover:scale-105 transition-transform text-sm sm:text-base">Создать</button>
+                <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="flex-1 border border-slate-700 font-bold py-4 sm:py-5 rounded-3xl uppercase hover:bg-slate-800 transition-colors text-sm sm:text-base">Отмена</button>
               </div>
             </form>
           </div>
