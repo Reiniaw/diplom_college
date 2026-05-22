@@ -172,6 +172,24 @@ if (user) {
     } catch (err) { alert("Ошибка роли"); }
   };
 
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      await axios.patch(`${API_BASE}orders/${orderId}/change-status/`, { status: newStatus }, 
+        { headers: getHeaders() }
+      );
+      toast.addToast(`Статус заказа #${orderId} изменен на ${newStatus}`);
+      // Обновляем список заказов
+      axios.get(`${API_BASE}orders/`, { headers: getHeaders() })
+        .then(res => {
+          const personal = res.data.filter(o => o.status !== 'cart');
+          setMyOrders(personal);
+        })
+        .catch(err => console.error("Ошибка загрузки истории", err));
+    } catch (err) {
+      toast.addToast("Ошибка при обновлении статуса", "error");
+    }
+  };
+
   if (!user) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-mono uppercase tracking-[0.2em] animate-pulse">
       Проверка протокола доступа...
@@ -535,14 +553,28 @@ if (user) {
             <div className="grid gap-6">
                 {myOrders.map(order => (
                     <div key={order.id} className="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-xl">
-                        <div className="p-6 bg-slate-800/30 flex justify-between items-center border-b border-slate-800">
+                        <div className="p-6 bg-slate-800/30 flex justify-between items-center border-b border-slate-800 gap-4 flex-wrap">
                             <div>
                                 <span className="text-sky-500 font-mono font-bold uppercase tracking-tighter">ЗАКАЗ #{order.id}</span>
                                 <p className="text-slate-500 text-[10px] mt-1 uppercase">{new Date(order.created_at).toLocaleString()}</p>
                             </div>
-                            <span className="px-4 py-1 bg-slate-800 rounded-full text-[10px] font-black uppercase text-slate-400 border border-slate-700">
-                                {order.status === 'placed' ? 'Оформлен' : 'Обработан'}
-                            </span>
+                            {isStaff ? (
+                              <select 
+                                value={order.status}
+                                onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                                className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-black uppercase text-slate-300 outline-none focus:border-sky-500 transition-colors"
+                              >
+                                <option value="placed">Оформлен</option>
+                                <option value="shipped">Отправлен</option>
+                                <option value="delivered">Доставлен</option>
+                                <option value="cancelled">Отменен</option>
+                              </select>
+                            ) : (
+                              <span className="px-4 py-1 bg-slate-800 rounded-full text-[10px] font-black uppercase text-slate-400 border border-slate-700">
+                                  {order.status === 'placed' ? 'Оформлен' : order.status === 'shipped' ? 'Отправлен' : order.status === 'delivered' ? 'Доставлен' : 'Отменен'}
+                              </span>
+                            )}
+                            <Link to={`/order/${order.id}`}>Отследить →</Link>
                         </div>
                         <div className="p-6 space-y-4">
                             {order.items.map(item => (

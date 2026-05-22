@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Warehouse from "./pages/Warehouse";
 import OrdersManager from './pages/OrdersManager';
 import NotFound from './pages/NotFound';
+import OrderTracking from './pages/OrderTracking';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/warehouse" element={<Warehouse />} />
         <Route path="/orders-manager" element={<OrdersManager />} />
         <Route path="*" element={<NotFound />} />
+        <Route path="/order/:id" element={<OrderTracking />} />
       </Routes>
     </Layout>
   );

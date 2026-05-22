@@ -96,11 +96,14 @@ class ProductImage(models.Model):
 class Order(models.Model):
     STATUS_CART = 'cart'
     STATUS_PLACED = 'placed'
+    STATUS_SHIPPED = 'shipped'
+    STATUS_DELIVERED = 'delivered'
     STATUS_CANCELLED = 'cancelled'
     STATUS_CHOICES = [
         (STATUS_CART, 'Cart'),
         (STATUS_PLACED, 'Placed'),
-        ('shipped', 'Shipped'),
+        (STATUS_SHIPPED, 'Shipped'),
+        (STATUS_DELIVERED, 'Delivered'),
         (STATUS_CANCELLED, 'Cancelled'),
     ]
     address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Адрес доставки")

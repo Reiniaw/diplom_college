@@ -30,8 +30,7 @@ export default function OrdersManager() {
 
   const updateStatus = async (orderId, newStatus) => {
     try {
-      await axios.patch(`${API_BASE}orders/${orderId}/`, 
-        { status: newStatus }, 
+      await axios.patch(`${API_BASE}orders/${orderId}/change-status/`, { status: newStatus }, 
         { headers: getHeaders() }
       );
       toast.addToast(`Статус заказа #${orderId} изменен на ${newStatus}`);
@@ -58,13 +57,13 @@ export default function OrdersManager() {
           
           {/* Фильтр по статусам */}
           <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
-            {['all', 'placed', 'shipped', 'cancelled'].map(s => (
+            {['all', 'placed', 'shipped', 'delivered', 'cancelled'].map(s => (
               <button 
                 key={s}
                 onClick={() => setFilterStatus(s)}
                 className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${filterStatus === s ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}
               >
-                {s === 'all' ? 'Все' : s === 'placed' ? 'Оформлены' : s === 'shipped' ? 'Отправлены' : 'Отменены'}
+                {s === 'all' ? 'Все' : s === 'placed' ? 'Оформлены' : s === 'shipped' ? 'Отправлены' : s === 'delivered' ? 'Доставлены' : 'Отменены'}
               </button>
             ))}
           </div>
@@ -94,8 +93,8 @@ export default function OrdersManager() {
                   >
                     <option value="placed">Оформлен</option>
                     <option value="shipped">Отправлен</option>
+                    <option value="delivered">Доставлен</option>
                     <option value="cancelled">Отменен</option>
-                    {/* Если добавишь в модели новые статусы (shipped, done), они появятся и тут */}
                   </select>
                 </div>
               </div>
