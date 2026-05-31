@@ -25,10 +25,11 @@ export default function Warehouse() {
     megapixels: '', sensor_type: '', video_resolution: '', weight: '',
     power: '', frequency: '', battery_life: '', connection: ''
   });
+  const [imageIdsToDelete, setImageIdsToDelete] = useState([]);
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   // ФИX: отдельно храним ID фото, которые нужно удалить на бэкенде
-  const [imageIdsToDelete, setImageIdsToDelete] = useState([]);
+
 
   const toast = useToast();
 
@@ -321,7 +322,7 @@ export default function Warehouse() {
                       {product.images && product.images.length > 0 ? (
                         <>
                           <img 
-                            src={product.images[0].image.startsWith('http') ? product.images[0].image : `${API_BASE}${product.images[0].image}`} 
+                            src={product.images[0].image.startsWith('http') ? product.images[0].image : `http://127.0.0.1:8000${product.images[0].image}`} 
                             className="w-full h-full object-cover" 
                             alt={product.name} 
                           />
@@ -503,7 +504,10 @@ export default function Warehouse() {
                             />
                             <button 
                               type="button"
-                              onClick={() => setImages(images.filter((_, i) => i !== idx))}
+                              onClick={() => {
+                                 if (img.id) setImageIdsToDelete(prev => [...prev, img.id]);
+                                  setImagePreviews(imagePreviews.filter((_, i) => i !== idx));
+                                  setImages(images.filter((_, i) => i !== idx));}}
                               className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm font-bold"
                             >
                               ✕

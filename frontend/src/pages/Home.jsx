@@ -100,7 +100,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       {/* 1. БАННЕР (HERO SECTION) */}
-      <section className="relative h-[550px] flex items-center justify-center overflow-hidden border-b border-slate-900/50">
+      <section className="relative min-h-[400px] h-auto py-16 md:h-[550px] flex items-center justify-center overflow-hidden border-b border-slate-900/50">
         {/* Фоновые глобусы */}
         <div className="absolute inset-0 bg-gradient-to-br from-sky-900/10 via-slate-950 to-slate-950 z-0"></div>
         <div className="absolute -top-32 -left-32 w-[500px] h-[500px] bg-sky-500/5 rounded-full blur-[150px] animate-pulse"></div>
