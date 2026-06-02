@@ -70,16 +70,16 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white pb-20">
-      <div className="max-w-7xl mx-auto px-8 pt-10">
-        <Link to="/" className="text-slate-500 hover:text-sky-500 transition-colors flex items-center gap-2 mb-8 uppercase text-xs tracking-widest font-bold">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10">
+        <Link to="/" className="text-slate-500 hover:text-sky-500 transition-colors flex items-center gap-2 mb-6 sm:mb-8 uppercase text-xs tracking-widest font-bold">
           ← Назад в каталог
         </Link>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16">
           
           {/* ГАЛЕРЕЯ С ЛИСТАНИЕМ */}
-          <div className="flex flex-col gap-4">
-            <div className="relative group bg-slate-900 border border-slate-800 rounded-[3rem] p-8 overflow-hidden h-[500px] flex items-center justify-center">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="relative group bg-slate-900 border border-slate-800 rounded-[3rem] p-4 sm:p-8 overflow-hidden h-[300px] sm:h-[400px] lg:h-[500px] flex items-center justify-center">
               <div className="absolute -inset-1 bg-sky-500/10 rounded-[3rem] blur-2xl"></div>
               
               {images.length > 0 ? (
@@ -93,16 +93,16 @@ export default function ProductDetail() {
                   {/* Кнопки переключения */}
                   {images.length > 1 && (
                     <>
-                      <button onClick={prevSlide} className="absolute left-6 z-20 bg-slate-950/50 p-4 rounded-full border border-slate-800 hover:bg-sky-500 hover:border-sky-400 transition-all opacity-0 group-hover:opacity-100">
+                      <button onClick={prevSlide} className="absolute left-2 sm:left-6 z-20 bg-slate-950/50 p-2 sm:p-4 rounded-full border border-slate-800 hover:bg-sky-500 hover:border-sky-400 transition-all opacity-0 group-hover:opacity-100 text-xs sm:text-base">
                         ←
                       </button>
-                      <button onClick={nextSlide} className="absolute right-6 z-20 bg-slate-950/50 p-4 rounded-full border border-slate-800 hover:bg-sky-500 hover:border-sky-400 transition-all opacity-0 group-hover:opacity-100">
+                      <button onClick={nextSlide} className="absolute right-2 sm:right-6 z-20 bg-slate-950/50 p-2 sm:p-4 rounded-full border border-slate-800 hover:bg-sky-500 hover:border-sky-400 transition-all opacity-0 group-hover:opacity-100 text-xs sm:text-base">
                         →
                       </button>
                     </>
                   )}
 
-                  <div className="absolute bottom-6 right-8 z-20 font-mono text-xs text-slate-500">
+                  <div className="absolute bottom-3 right-4 sm:bottom-6 sm:right-8 z-20 font-mono text-[10px] sm:text-xs text-slate-500">
                     {String(selectedImageIndex + 1).padStart(2, '0')} / {String(images.length).padStart(2, '0')}
                   </div>
                 </>
@@ -131,30 +131,32 @@ export default function ProductDetail() {
 
           {/* ИНФО И ХАРАКТЕРИСТИКИ */}
           <div className="flex flex-col">
-            <h1 className="text-3xl sm:text-4xl lg:text-6xl font-black uppercase italic tracking-tighter mb-4 leading-none">
+            <h1 className="text-2xl sm:text-4xl lg:text-6xl font-black uppercase italic tracking-tighter mb-3 sm:mb-4 leading-none">
               {product.name}
             </h1>
             
-            <div className="flex items-center gap-6 mb-10">
-               <span className="text-4xl font-mono font-black text-sky-400">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mb-6 sm:mb-10">
+               <span className="text-3xl sm:text-4xl font-mono font-black text-sky-400">
                  {Number(product.price).toLocaleString()} ₸
                </span>
-               <div className={`h-2 w-2 rounded-full ${product.is_in_stock ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-               <span className={`text-xs uppercase tracking-[0.3em] ${product.is_in_stock ? 'text-green-400' : 'text-red-400'}`}>
-                 {product.is_in_stock ? `В наличии (${product.stock})` : 'НЕТ В НАЛИЧИИ'}
-               </span>
+               <div className="flex items-center gap-2 sm:gap-3">
+                 <div className={`h-2 w-2 rounded-full ${product.is_in_stock ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                 <span className={`text-xs sm:text-sm uppercase tracking-[0.3em] ${product.is_in_stock ? 'text-green-400' : 'text-red-400'}`}>
+                   {product.is_in_stock ? `В наличии (${product.stock})` : 'НЕТ В НАЛИЧИИ'}
+                 </span>
+               </div>
             </div>
 
-            <div className="bg-slate-900/40 border border-slate-800/50 rounded-[2.5rem] p-8 mb-10">
-              <h3 className="text-xs font-bold text-sky-500 uppercase mb-4 tracking-[0.2em]">История модели</h3>
-              <p className="text-slate-400 leading-relaxed text-lg">
+            <div className="bg-slate-900/40 border border-slate-800/50 rounded-[2.5rem] p-5 sm:p-8 mb-6 sm:mb-10">
+              <h3 className="text-xs font-bold text-sky-500 uppercase mb-3 sm:mb-4 tracking-[0.2em]">История модели</h3>
+              <p className="text-slate-400 leading-relaxed text-sm sm:text-base lg:text-lg">
                 {product.description || "Описание этой модели находится в архиве. Скоро мы его восстановим."}
               </p>
             </div>
 
             {/* ТЕХНИЧЕСКИЕ ХАРАКТЕРИСТИКИ */}
-            <div className="space-y-1 mb-12">
-              <h3 className="text-sm font-bold uppercase tracking-[0.3em] text-white/50 mb-8 border-l-2 border-sky-500 pl-4">
+            <div className="space-y-1 mb-8 sm:mb-12">
+              <h3 className="text-xs sm:text-sm font-bold uppercase tracking-[0.3em] text-white/50 mb-6 sm:mb-8 border-l-2 border-sky-500 pl-4">
                 Спецификации устройства
               </h3>
               
@@ -181,7 +183,7 @@ export default function ProductDetail() {
             <button 
               onClick={addToCart}
               disabled={!product.is_in_stock}
-              className={`group relative w-full font-black py-6 rounded-2xl transition-all uppercase italic tracking-tighter text-2xl active:scale-[0.97] ${
+              className={`group relative w-full font-black py-4 sm:py-6 rounded-2xl transition-all uppercase italic tracking-tighter text-lg sm:text-2xl active:scale-[0.97] ${
                 product.is_in_stock 
                   ? 'bg-white text-black hover:bg-sky-500' 
                   : 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50'

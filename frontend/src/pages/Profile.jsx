@@ -199,13 +199,13 @@ if (user) {
   const isStaff = ['director', 'manager', 'seller'].includes(user.role);
 
   return (
-    <div className="min-h-screen bg-slate-950 p-8 text-white">
+    <div className="min-h-screen bg-slate-950 p-4 sm:p-6 lg:p-8 text-white">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <header className="mb-8 sm:mb-12 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-5xl font-black italic tracking-tighter uppercase mb-2">Личный кабинет</h1>
-            <p className="text-sky-400 font-medium font-mono text-lg uppercase tracking-widest">
-              {user.username} <span className="text-slate-600 ml-2">[{user.role}]</span>
+            <h1 className="text-3xl sm:text-5xl font-black italic tracking-tighter uppercase mb-1 sm:mb-2">Личный кабинет</h1>
+            <p className="text-sky-400 font-medium font-mono text-xs sm:text-lg uppercase tracking-widest">
+              {user.username} <span className="text-slate-600 ml-2 text-xs sm:text-base">[{user.role}]</span>
             </p>
           </div>
           <button 
@@ -217,13 +217,13 @@ if (user) {
         </header>
 
         {/* --- РЕДАКТИРОВАНИЕ ПРОФИЛЯ --- */}
-        <section className="mb-16">
+        <section className="mb-12 sm:mb-16">
           <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden">
-            <div className="p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <h2 className="text-2xl font-bold uppercase italic tracking-tight">Мой Профиль</h2>
+            <div className="p-4 sm:p-6 lg:p-8 border-b border-slate-800 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-slate-900/50 gap-3 sm:gap-4">
+              <h2 className="text-lg sm:text-2xl font-bold uppercase italic tracking-tight">Мой Профиль</h2>
               <button 
                 onClick={() => setIsEditingProfile(!isEditingProfile)}
-                className={`px-6 py-2 rounded-xl font-bold transition-all shadow-lg text-xs uppercase ${
+                className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-bold transition-all shadow-lg text-xs uppercase ${
                   isEditingProfile 
                     ? 'bg-slate-700 hover:bg-slate-600 text-white' 
                     : 'bg-sky-500 hover:bg-sky-400 text-slate-950'
@@ -234,33 +234,33 @@ if (user) {
             </div>
 
             {isEditingProfile ? (
-              <form onSubmit={handleSaveProfile} className="p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleSaveProfile} className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <input 
                     type="text" 
                     placeholder="Имя" 
-                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
                     value={profileData.first_name}
                     onChange={e => setProfileData({...profileData, first_name: e.target.value})}
                   />
                   <input 
                     type="text" 
                     placeholder="Фамилия" 
-                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
                     value={profileData.last_name}
                     onChange={e => setProfileData({...profileData, last_name: e.target.value})}
                   />
                   <input 
                     type="email" 
                     placeholder="Email" 
-                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
                     value={profileData.email}
                     onChange={e => setProfileData({...profileData, email: e.target.value})}
                   />
                   <input 
                     type="tel" 
                     placeholder="Номер телефона" 
-                    className="bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                    className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
                     value={profileData.phone}
                     onChange={e => setProfileData({...profileData, phone: e.target.value})}
                   />
@@ -269,33 +269,33 @@ if (user) {
                 <textarea 
                   placeholder="Адрес доставки" 
                   rows="3"
-                  className="w-full bg-slate-950 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
                   value={profileData.address}
                   onChange={e => setProfileData({...profileData, address: e.target.value})}
                 ></textarea>
 
-                <div className="bg-slate-950/50 p-6 rounded-2xl border border-slate-800">
-                  <h4 className="text-sm font-bold text-sky-500 mb-4 uppercase">Смена пароля (опционально)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-950/50 p-4 sm:p-6 rounded-2xl border border-slate-800">
+                  <h4 className="text-xs sm:text-sm font-bold text-sky-500 mb-3 sm:mb-4 uppercase">Смена пароля (опционально)</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <input 
                       type="password" 
                       placeholder="Текущий пароль" 
-                      className="bg-slate-900 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                      className="bg-slate-900 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
                       value={profileData.current_password}
                       onChange={e => setProfileData({...profileData, current_password: e.target.value})}
                     />
                     <input 
                       type="password" 
                       placeholder="Новый пароль" 
-                      className="bg-slate-900 border border-slate-700 p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors"
+                      className="bg-slate-900 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
                       value={profileData.new_password}
                       onChange={e => setProfileData({...profileData, new_password: e.target.value})}
                     />
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-4">
-                  <button type="submit" className="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-4 rounded-2xl uppercase shadow-lg shadow-sky-500/20 transition-all active:scale-95">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-3 sm:pt-4">
+                  <button type="submit" className="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-3 sm:py-4 rounded-2xl uppercase shadow-lg shadow-sky-500/20 transition-all active:scale-95 text-sm">
                     Сохранить изменения
                   </button>
                   <button 

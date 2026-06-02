@@ -219,11 +219,11 @@ export default function Cart() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-8">
+    <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
 
         {/* Прогресс шагов */}
-        <div className="flex items-center gap-3 mb-10">
+        <div className="flex items-center gap-2 sm:gap-3 mb-8 sm:mb-10">
           {['cart', 'payment'].map((s, i) => {
             const labels = { cart: 'Корзина', payment: 'Оплата' };
             const active = step === s;
@@ -231,11 +231,11 @@ export default function Cart() {
             return (
               <React.Fragment key={s}>
                 {i > 0 && <div className={`flex-1 h-px ${done ? 'bg-sky-500' : 'bg-slate-800'}`} />}
-                <div className={`flex items-center gap-2 ${active ? 'text-white' : done ? 'text-sky-500' : 'text-slate-600'}`}>
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border ${active ? 'bg-sky-500 border-sky-500 text-slate-950' : done ? 'bg-sky-500/20 border-sky-500 text-sky-400' : 'border-slate-700'}`}>
+                <div className={`flex items-center gap-1 sm:gap-2 ${active ? 'text-white' : done ? 'text-sky-500' : 'text-slate-600'}`}>
+                  <div className={`w-6 sm:w-7 h-6 sm:h-7 rounded-full flex items-center justify-center text-xs font-bold border ${active ? 'bg-sky-500 border-sky-500 text-slate-950' : done ? 'bg-sky-500/20 border-sky-500 text-sky-400' : 'border-slate-700'}`}>
                     {done ? '✓' : i + 1}
                   </div>
-                  <span className="text-sm font-bold uppercase tracking-wide hidden sm:block">{labels[s]}</span>
+                  <span className="text-xs sm:text-sm font-bold uppercase tracking-wide hidden sm:block">{labels[s]}</span>
                 </div>
               </React.Fragment>
             );
@@ -245,46 +245,46 @@ export default function Cart() {
         {/* ─── ШАГ 1: КОРЗИНА + ДОСТАВКА ─── */}
         {step === 'cart' && (
           <>
-            <h1 className="text-3xl sm:text-4xl font-black uppercase italic mb-8">Оформление</h1>
+            <h1 className="text-2xl sm:text-4xl font-black uppercase italic mb-6 sm:mb-8">Оформление</h1>
 
             {/* Список товаров */}
-            <div className="space-y-3 mb-8">
+            <div className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
               {cart.items.map(item => (
-                <div key={item.id} className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl flex items-center gap-4">
-                  <img src={item.product_image} className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover flex-shrink-0 bg-slate-800" alt="" />
+                <div key={item.id} className="bg-slate-900 border border-slate-800 p-3 sm:p-4 lg:p-5 rounded-2xl flex items-center gap-3 sm:gap-4">
+                  <img src={item.product_image} className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl object-cover flex-shrink-0 bg-slate-800" alt="" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm sm:text-base truncate">{item.product_name}</p>
-                    <p className="text-slate-400 text-xs sm:text-sm">{item.price} ₸ / шт.</p>
+                    <p className="font-bold text-xs sm:text-base truncate">{item.product_name}</p>
+                    <p className="text-slate-400 text-[10px] sm:text-sm">{item.price} ₸ / шт.</p>
                   </div>
-                  <div className="flex items-center gap-2 bg-slate-950 rounded-xl px-2 py-1 flex-shrink-0">
+                  <div className="flex items-center gap-1 sm:gap-2 bg-slate-950 rounded-xl px-1.5 sm:px-2 py-1 flex-shrink-0">
                     <button onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)} disabled={loading}
-                      className="w-7 h-7 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/40 transition disabled:opacity-50 font-bold text-sm">−</button>
-                    <span className="w-7 text-center font-bold text-sm">{item.quantity}</span>
+                      className="w-6 h-6 sm:w-7 sm:h-7 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/40 transition disabled:opacity-50 font-bold text-xs sm:text-sm">−</button>
+                    <span className="w-6 text-center font-bold text-xs sm:text-sm">{item.quantity}</span>
                     <button onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)} disabled={loading}
-                      className="w-7 h-7 bg-sky-500/20 text-sky-400 rounded-lg hover:bg-sky-500/40 transition disabled:opacity-50 font-bold text-sm">+</button>
+                      className="w-6 h-6 sm:w-7 sm:h-7 bg-sky-500/20 text-sky-400 rounded-lg hover:bg-sky-500/40 transition disabled:opacity-50 font-bold text-xs sm:text-sm">+</button>
                   </div>
-                  <span className="font-mono text-sky-400 text-sm sm:text-base w-24 text-right flex-shrink-0">{item.total_price} ₸</span>
+                  <span className="font-mono text-sky-400 text-xs sm:text-base w-20 sm:w-24 text-right flex-shrink-0">{item.total_price} ₸</span>
                   <button onClick={() => setDeleteConfirm(item.id)} disabled={loading}
-                    className="w-8 h-8 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/40 transition disabled:opacity-50 flex items-center justify-center text-sm flex-shrink-0">✕</button>
+                    className="w-7 h-7 sm:w-8 sm:h-8 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/40 transition disabled:opacity-50 flex items-center justify-center text-xs sm:text-sm flex-shrink-0">✕</button>
                 </div>
               ))}
             </div>
 
             {/* Данные доставки */}
-            <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-[2rem] mb-6 space-y-4">
-              <h2 className="text-base font-bold uppercase italic text-sky-500">Данные доставки</h2>
+            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-6 lg:p-8 rounded-[2rem] mb-6 space-y-3 sm:space-y-4">
+              <h2 className="text-xs sm:text-base font-bold uppercase italic text-sky-500">Данные доставки</h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase font-black text-slate-500 ml-2">Телефон</label>
                   <input type="tel" placeholder="+7 (7XX) XXX-XX-XX"
-                    className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-sky-500 font-mono text-sm"
+                    className="w-full bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 font-mono text-xs sm:text-sm"
                     value={shippingInfo.phone} onChange={handlePhoneChange} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase font-black text-slate-500 ml-2">Желаемое время</label>
                   <input type="text"
-                    className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-sky-500 text-sm"
+                    className="w-full bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 text-xs sm:text-sm"
                     value={shippingInfo.delivery_time}
                     onChange={e => setShippingInfo({...shippingInfo, delivery_time: e.target.value})} />
                 </div>
@@ -293,7 +293,7 @@ export default function Cart() {
               <div className="space-y-2">
                 <label className="text-[10px] uppercase font-black text-slate-500 ml-2">Адрес доставки</label>
                 <input type="text" placeholder="Город, улица, дом..."
-                  className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-sky-500 text-sm"
+                  className="w-full bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 text-xs sm:text-sm"
                   value={shippingInfo.address}
                   onChange={e => setShippingInfo({...shippingInfo, address: e.target.value})} />
               </div>
@@ -301,17 +301,17 @@ export default function Cart() {
               <div className="space-y-2">
                 <label className="text-[10px] uppercase font-black text-slate-500 ml-2">Комментарий к заказу</label>
                 <textarea placeholder="Например: подъезд 2, код домофона 123..." rows="2"
-                  className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-sky-500 resize-none text-sm"
+                  className="w-full bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 resize-none text-xs sm:text-sm"
                   value={shippingInfo.notes}
                   onChange={e => setShippingInfo({...shippingInfo, notes: e.target.value})} />
               </div>
             </div>
 
             {/* Итог + кнопка */}
-            <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-[2rem] flex flex-col sm:flex-row justify-between items-center gap-4">
-              <p className="text-3xl sm:text-4xl font-black font-mono">{cart.total_price} ₸</p>
+            <div className="bg-slate-900 border border-slate-800 p-4 sm:p-6 lg:p-8 rounded-[2rem] flex flex-col sm:flex-row justify-between items-center gap-4">
+              <p className="text-2xl sm:text-4xl font-black font-mono">{cart.total_price} ₸</p>
               <button onClick={handleGoToPayment}
-                className="w-full sm:w-auto bg-sky-500 text-slate-950 px-10 py-4 rounded-2xl font-black uppercase italic hover:bg-sky-400 transition-all">
+                className="w-full sm:w-auto bg-sky-500 text-slate-950 px-6 sm:px-10 py-3 sm:py-4 rounded-2xl font-black uppercase italic hover:bg-sky-400 transition-all text-sm sm:text-base">
                 К оплате →
               </button>
             </div>
@@ -321,58 +321,58 @@ export default function Cart() {
         {/* ─── ШАГ 2: ОПЛАТА ─── */}
         {step === 'payment' && (
           <>
-            <div className="flex items-center gap-4 mb-8">
-              <button onClick={() => setStep('cart')} className="text-slate-500 hover:text-white transition-colors text-sm">
+            <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+              <button onClick={() => setStep('cart')} className="text-slate-500 hover:text-white transition-colors text-xs sm:text-sm">
                 ← Назад
               </button>
-              <h1 className="text-3xl sm:text-4xl font-black uppercase italic">Оплата</h1>
+              <h1 className="text-2xl sm:text-4xl font-black uppercase italic">Оплата</h1>
             </div>
 
             {/* Мини-сводка заказа */}
-            <div className="bg-slate-900/50 border border-slate-800 p-5 rounded-2xl mb-6 flex justify-between items-center">
+            <div className="bg-slate-900/50 border border-slate-800 p-4 sm:p-5 rounded-2xl mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <p className="text-slate-400 text-xs uppercase tracking-widest">Итого к оплате</p>
-                <p className="text-2xl font-black font-mono text-sky-400">{cart.total_price} ₸</p>
+                <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-widest">Итого к оплате</p>
+                <p className="text-xl sm:text-2xl font-black font-mono text-sky-400">{cart.total_price} ₸</p>
               </div>
-              <div className="text-right">
-                <p className="text-slate-400 text-xs">Товаров: {cart.items.length}</p>
-                <p className="text-slate-500 text-xs truncate max-w-[180px]">{shippingInfo.address}</p>
+              <div className="text-right text-xs">
+                <p className="text-slate-400">Товаров: {cart.items.length}</p>
+                <p className="text-slate-500 truncate max-w-[160px] sm:max-w-[200px]">{shippingInfo.address}</p>
               </div>
             </div>
 
             {/* Выбор метода оплаты */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-6">
               {PAYMENT_METHODS.map(m => (
                 <button key={m.id} type="button" onClick={() => setPaymentMethod(m.id)}
-                  className={`p-4 sm:p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  className={`p-3 sm:p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 sm:gap-2 text-xs sm:text-sm ${
                     paymentMethod === m.id
                       ? 'border-sky-500 bg-sky-500/10'
                       : 'border-slate-800 bg-slate-900 hover:border-slate-700'
                   }`}>
-                  <span className={`text-2xl ${paymentMethod === m.id ? 'text-sky-400' : 'text-slate-500'}`}>{m.icon}</span>
-                  <span className={`font-bold text-sm ${paymentMethod === m.id ? 'text-sky-400' : 'text-slate-300'}`}>{m.label}</span>
-                  <span className="text-xs text-slate-500">{m.sub}</span>
+                  <span className={`text-xl sm:text-2xl ${paymentMethod === m.id ? 'text-sky-400' : 'text-slate-500'}`}>{m.icon}</span>
+                  <span className={`font-bold ${paymentMethod === m.id ? 'text-sky-400' : 'text-slate-300'}`}>{m.label}</span>
+                  <span className="text-[10px] text-slate-500">{m.sub}</span>
                 </button>
               ))}
             </div>
 
             {/* Kaspi QR */}
             {paymentMethod === 'kaspi' && (
-              <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-[2rem] mb-6 flex flex-col items-center gap-5">
-                <p className="text-slate-400 text-sm text-center">
+              <div className="bg-slate-900 border border-slate-800 p-4 sm:p-6 lg:p-8 rounded-[2rem] mb-6 flex flex-col items-center gap-4 sm:gap-5">
+                <p className="text-slate-400 text-xs sm:text-sm text-center">
                   Откройте приложение <span className="text-red-400 font-bold">Kaspi.kz</span> → «Оплатить» → «QR-код»
                 </p>
-                <div className="bg-white p-4 rounded-2xl shadow-lg">
+                <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-lg">
                   <img
                     src={KASPI_QR_URL}
                     alt="Kaspi QR код"
-                    className="w-44 h-44 sm:w-48 sm:h-48"
+                    className="w-40 h-40 sm:w-48 sm:h-48"
                     onError={e => { e.target.style.display = 'none'; }}
                   />
                 </div>
-                <div className="bg-slate-950 rounded-2xl px-6 py-3 text-center">
-                  <p className="text-slate-500 text-xs">Сумма к оплате</p>
-                  <p className="text-sky-400 font-mono font-black text-2xl">{cart.total_price} ₸</p>
+                <div className="bg-slate-950 rounded-2xl px-4 sm:px-6 py-2 sm:py-3 text-center w-full sm:w-auto">
+                  <p className="text-slate-500 text-[10px] sm:text-xs">Сумма к оплате</p>
+                  <p className="text-sky-400 font-mono font-black text-lg sm:text-2xl">{cart.total_price} ₸</p>
                 </div>
                 <p className="text-slate-600 text-xs text-center">После оплаты нажмите «Подтвердить заказ»</p>
               </div>
@@ -380,19 +380,19 @@ export default function Cart() {
 
             {/* Форма карты */}
             {paymentMethod === 'card' && (
-              <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-[2rem] mb-6 space-y-4">
+              <div className="bg-slate-900 border border-slate-800 p-4 sm:p-6 lg:p-8 rounded-[2rem] mb-6 space-y-3 sm:space-y-4">
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase font-black text-slate-500 ml-2">Номер карты</label>
                   <input type="text" placeholder="0000 0000 0000 0000" maxLength={19}
-                    className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-sky-500 font-mono text-base tracking-wider"
+                    className="w-full bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 font-mono text-sm sm:text-base tracking-wider"
                     value={cardData.number}
                     onChange={e => setCardData({...cardData, number: formatCardNumber(e.target.value)})} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] uppercase font-black text-slate-500 ml-2">Срок действия</label>
                     <input type="text" placeholder="MM / ГГ" maxLength={7}
-                      className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-sky-500 font-mono text-sm"
+                      className="w-full bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 font-mono text-xs sm:text-sm"
                       value={cardData.expiry}
                       onChange={e => setCardData({...cardData, expiry: formatExpiry(e.target.value)})} />
                   </div>
