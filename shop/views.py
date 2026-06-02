@@ -27,7 +27,10 @@ User = get_user_model()
 def send_order_receipt(order, recipient_email):
     """Отправляет HTML-чек на указанный email после оформления заказа."""
     if not recipient_email:
+        print(f"[EMAIL] ⚠️ Нет email адреса для отправки чека заказа #{order.id}")
         return
+
+    print(f"[EMAIL] Начинаем отправку чека для заказа #{order.id} на {recipient_email}")
 
     items_html = ""
     for item in order.items.all():
@@ -116,11 +119,11 @@ def send_order_receipt(order, recipient_email):
             from_email=django_settings.DEFAULT_FROM_EMAIL,
             recipient_list=[recipient_email],
             html_message=html_message,
-            fail_silently=False,  # показываем ошибки
+            fail_silently=False,
         )
-        print(f"[EMAIL] ✓ Чек отправлен на {recipient_email} (результат: {result})")
+        print(f"[EMAIL] ✅ Чек отправлен на {recipient_email} (результат: {result})")
     except Exception as e:
-        print(f"[EMAIL] ✗ Ошибка отправки чека: {e}")
+        print(f"[EMAIL] ❌ ОШИБКА отправки чека: {e}")
         print(f"[EMAIL] Переменные: FROM={django_settings.DEFAULT_FROM_EMAIL}, TO={recipient_email}")
 
 
@@ -473,8 +476,15 @@ class OrderViewSet(viewsets.ModelViewSet):
         # Берём email из тела запроса (пользователь может указать другой),
         # или fallback на email из профиля
         receipt_email = request.data.get('receipt_email') or request.user.email
+        print(f"[CHECKOUT] Оформление заказа #{order.id}")
+        print(f"[CHECKOUT]   receipt_email из request: {request.data.get('receipt_email')}")
+        print(f"[CHECKOUT]   user.email: {request.user.email}")
+        print(f"[CHECKOUT]   Итоговый email: {receipt_email}")
+        
         if receipt_email:
             send_order_receipt(order, receipt_email)
+        else:
+            print(f"[CHECKOUT] ⚠️ Email не найден, письмо не отправляется")
 
         return Response(OrderSerializer(order).data)
 

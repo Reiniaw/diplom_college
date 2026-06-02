@@ -4,6 +4,9 @@ export const getHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+// Get API base URL from environment or config
+const API_BASE = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+
 // Получить первое изображение товара с полным URL
 export const getProductImageUrl = (product) => {
   if (!product) return null;
@@ -11,12 +14,12 @@ export const getProductImageUrl = (product) => {
   // Новая структура с images []
   if (product.images && product.images.length > 0) {
     const imageUrl = product.images[0].image;
-    return imageUrl.startsWith('http') ? imageUrl : `http://127.0.0.1:8000${imageUrl}`;
+    return imageUrl.startsWith('http') ? imageUrl : `${API_BASE}${imageUrl}`;
   }
   
   // Обратная совместимость со старой структурой (image)
   if (product.image) {
-    return product.image.startsWith('http') ? product.image : `http://127.0.0.1:8000${product.image}`;
+    return product.image.startsWith('http') ? product.image : `${API_BASE}${product.image}`;
   }
   
   return null;
@@ -28,6 +31,6 @@ export const getProductImagesUrls = (product) => {
   
   return product.images.map(img => {
     const url = img.image || img;
-    return url.startsWith('http') ? url : `http://127.0.0.1:8000${url}`;
+    return url.startsWith('http') ? url : `${API_BASE}${url}`;
   });
 };

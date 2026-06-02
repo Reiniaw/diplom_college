@@ -65,11 +65,32 @@ export default function Cart() {
 
   const handleUpdateQuantity = async (itemId, newQuantity) => {
     if (newQuantity < 1) return;
+    
+    // Проверяем на фронте - если товара нет в наличии
+    const item = cart.items.find(i => i.id === itemId);
+    if (item && newQuantity > item.product.stock) {
+      toast.addToast(
+        `На складе осталось только ${item.product.stock} шт. "${item.product_name}"`,
+        "error"
+      );
+      return;
+    }
+    
     setLoading(true);
     try {
       await axios.patch(`${API_BASE}order-items/${itemId}/`, { quantity: newQuantity }, { headers: getHeaders() });
       fetchCart();
-    } catch (err) { toast.addToast("Ошибка при обновлении количества", "error"); }
+      toast.addToast("Количество обновлено ✓");
+    } catch (err) {
+      const errorMsg = err.response?.data?.detail || err.response?.data?.quantity?.[0];
+      if (errorMsg?.includes('stock')) {
+        toast.addToast("Товар закончился на складе", "error");
+      } else if (errorMsg) {
+        toast.addToast(errorMsg, "error");
+      } else {
+        toast.addToast("Ошибка при обновлении количества", "error");
+      }
+    }
     finally { setLoading(false); }
   };
 
