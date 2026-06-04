@@ -12,12 +12,12 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings as django_settings
 
-from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue
+from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue, Favorite, Review
 from .serializers import (
     CategorySerializer, ProductSerializer,
     OrderSerializer, AddItemSerializer,
     UserSerializer, RegisterSerializer, TechFieldSerializer,
-    OrderItemSerializer, OrderItemUpdateSerializer, UserUpdateSerializer
+    OrderItemSerializer, OrderItemUpdateSerializer, UserUpdateSerializer, FavoriteSerializer, ReviewSerializer
 )
 
 User = get_user_model()
@@ -546,3 +546,79 @@ class OrderItemViewSet(viewsets.ModelViewSet):
             import traceback
             traceback.print_exc()
             return Response({'detail': f'Ошибка: {str(e)}'}, status=500)
+
+
+# ─── ИЗБРАННОЕ ─────────────────────────────────────────────────────────────────
+class FavoriteViewSet(viewsets.ViewSet):
+    """
+    GET  /favorites/            — список избранного текущего пользователя
+    POST /favorites/            — добавить товар { "product_id": <id> }
+    DELETE /favorites/<id>/     — убрать из избранного (id — это id Favorite, не Product)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        favorites = Favorite.objects.filter(user=request.user).select_related('product')
+        serializer = FavoriteSerializer(favorites, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def create(self, request):
+        serializer = FavoriteSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            # unique_together сам отловит дубль, но дадим понятную ошибку
+            if Favorite.objects.filter(user=request.user, product=serializer.validated_data['product']).exists():
+                return Response({'detail': 'Уже в избранном'}, status=400)
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    def destroy(self, request, pk=None):
+        try:
+            fav = Favorite.objects.get(pk=pk, user=request.user)
+            fav.delete()
+            return Response(status=204)
+        except Favorite.DoesNotExist:
+            return Response({'detail': 'Не найдено'}, status=404)
+
+
+# ─── ОТЗЫВЫ ────────────────────────────────────────────────────────────────────
+class ReviewViewSet(viewsets.ViewSet):
+    """
+    GET  /products/<product_id>/reviews/       — список отзывов к товару
+    POST /products/<product_id>/reviews/       — оставить отзыв
+    DELETE /products/<product_id>/reviews/<id>/ — удалить свой отзыв
+    """
+
+    def get_permissions(self):
+        if self.action in ['create', 'destroy']:
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    def list(self, request, product_pk=None):
+        reviews = Review.objects.filter(product_id=product_pk).select_related('user')
+        serializer = ReviewSerializer(reviews, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def create(self, request, product_pk=None):
+        # Один отзыв на товар
+        if Review.objects.filter(user=request.user, product_id=product_pk).exists():
+            return Response({'detail': 'Вы уже оставляли отзыв на этот товар'}, status=400)
+
+        try:
+            product = Product.objects.get(pk=product_pk)
+        except Product.DoesNotExist:
+            return Response({'detail': 'Товар не найден'}, status=404)
+
+        serializer = ReviewSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save(user=request.user, product=product)
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    def destroy(self, request, product_pk=None, pk=None):
+        try:
+            review = Review.objects.get(pk=pk, product_id=product_pk, user=request.user)
+            review.delete()
+            return Response(status=204)
+        except Review.DoesNotExist:
+            return Response({'detail': 'Отзыв не найден или вы не автор'}, status=404)

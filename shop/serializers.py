@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue
+from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue, Favorite, Review
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -154,3 +154,33 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
+
+class FavoriteSerializer(serializers.ModelSerializer):
+    # Полные данные о товаре, чтобы сразу рендерить карточку
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(),
+        write_only=True,
+        source='product'
+    )
+
+    class Meta:
+        model = Favorite
+        fields = ['id', 'product', 'product_id', 'created_at']
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+    # is_mine нужен фронту: чтобы показать кнопку "Удалить" только автору
+    is_mine = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Review
+        fields = ['id', 'username', 'rating', 'text', 'created_at', 'is_mine']
+        read_only_fields = ['id', 'username', 'created_at', 'is_mine']
+
+    def get_is_mine(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.user == request.user
+        return False
