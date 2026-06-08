@@ -6,7 +6,8 @@ from .views import (
     DirectorUserViewSet, RegisterAPIView,
     OrderViewSet, CurrentUserView,
     DirectorStatsView, TechFieldViewSet,
-    OrderItemViewSet, FavoriteViewSet, ReviewViewSet
+    OrderItemViewSet, FavoriteViewSet, ReviewViewSet,
+    SendEmailVerificationView, VerifyEmailView,
 )
 
 router = DefaultRouter()
@@ -26,6 +27,8 @@ urlpatterns = [
     path('me/', CurrentUserView.as_view(), name='current-user'),
     path('register/', RegisterAPIView.as_view(), name='user-register'),
     path('director/stats/', DirectorStatsView.as_view(), name='director-stats'),
+    path('send-verification/', SendEmailVerificationView.as_view(), name='send-verification'),
+    path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
     path('', include(router.urls)),
     path('', include(products_router.urls)),
 ]

@@ -6,31 +6,52 @@ import API_BASE from '../utils/config';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [formData, setFormData] = useState({ username: '', password: '', confirmPassword: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Проверка совпадения паролей при регистрации
+    if (!isLogin && formData.password !== formData.confirmPassword) {
+      toast.addToast("Пароли не совпадают", "error");
+      return;
+    }
+
     const endpoint = isLogin ? 'token/' : 'register/';
     try {
-      const res = await axios.post(`${API_BASE}${endpoint}`, formData);
+      const { confirmPassword, ...sendData } = formData;
+      const res = await axios.post(`${API_BASE}${endpoint}`, isLogin ? sendData : sendData);
       if (isLogin) {
         localStorage.setItem('access', res.data.access);
         localStorage.setItem('refresh', res.data.refresh);
-        window.location.href = '/profile'; // Перезагружаем для обновления хэдера
+        window.dispatchEvent(new Event('userUpdated'));
+        navigate('/profile');
       } else {
         toast.addToast("Регистрация прошла успешно! Теперь войдите.");
         setIsLogin(true);
+        setFormData({ username: '', password: '', confirmPassword: '' });
       }
     } catch (err) {
       toast.addToast("Ошибка: проверьте данные", "error");
     }
   };
 
+  const handleSwitch = () => {
+    setIsLogin(!isLogin);
+    setFormData({ username: '', password: '', confirmPassword: '' });
+    setShowPassword(false);
+    setShowConfirm(false);
+  };
+
+  // Совпадают ли пароли (показываем только если оба заполнены)
+  const passwordsMatch = formData.confirmPassword === '' || formData.password === formData.confirmPassword;
+
   return (
     <div className="min-h-[calc(100vh-64px)] bg-slate-950 flex items-center justify-center p-4 sm:p-6">
-      {/* Декоративный фоновый элемент */}
       <div className="absolute w-64 h-64 bg-sky-500/10 blur-[120px] rounded-full top-1/4 left-1/4"></div>
       
       <div className="w-full max-w-md bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl relative">
@@ -46,6 +67,7 @@ const Login = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+          {/* Логин */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Логин
@@ -53,26 +75,81 @@ const Login = () => {
             <input 
               type="text" 
               required
+              autoComplete="username"
               className="w-full bg-slate-800/50 border border-slate-700 text-white p-3 sm:p-3.5 rounded-2xl outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all placeholder:text-slate-600 text-sm sm:text-base"
               placeholder="username"
+              value={formData.username}
               onChange={(e) => setFormData({...formData, username: e.target.value})}
             />
           </div>
 
+          {/* Пароль */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Пароль
             </label>
-            <input 
-              type="password" 
-              required
-              className="w-full bg-slate-800/50 border border-slate-700 text-white p-3 sm:p-3.5 rounded-2xl outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all placeholder:text-slate-600 text-sm sm:text-base"
-              placeholder="••••••••"
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-            />
+            <div className="relative">
+              <input 
+                type={showPassword ? 'text' : 'password'}
+                required
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
+                className="w-full bg-slate-800/50 border border-slate-700 text-white p-3 sm:p-3.5 rounded-2xl outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all placeholder:text-slate-600 text-sm sm:text-base pr-24"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(s => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-colors px-2 py-1 rounded-lg hover:bg-slate-700"
+              >
+                {showPassword ? 'Скрыть' : 'Показать'}
+              </button>
+            </div>
           </div>
 
-          <button className="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-3 sm:py-4 rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-sky-500/20 mt-3 sm:mt-4 text-sm sm:text-base">
+          {/* Подтверждение пароля — только при регистрации */}
+          {!isLogin && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Подтвердите пароль
+              </label>
+              <div className="relative">
+                <input 
+                  type={showConfirm ? 'text' : 'password'}
+                  required
+                  autoComplete="new-password"
+                  className={`w-full bg-slate-800/50 border text-white p-3 sm:p-3.5 rounded-2xl outline-none focus:ring-1 transition-all placeholder:text-slate-600 text-sm sm:text-base pr-24 ${
+                    passwordsMatch
+                      ? 'border-slate-700 focus:border-sky-500 focus:ring-sky-500'
+                      : 'border-rose-500/70 focus:border-rose-500 focus:ring-rose-500'
+                  }`}
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-colors px-2 py-1 rounded-lg hover:bg-slate-700"
+                >
+                  {showConfirm ? 'Скрыть' : 'Показать'}
+                </button>
+              </div>
+              {/* Подсказка о совпадении */}
+              {formData.confirmPassword !== '' && (
+                <p className={`text-xs mt-1.5 ml-1 font-semibold ${passwordsMatch ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {passwordsMatch ? '✓ Пароли совпадают' : '✕ Пароли не совпадают'}
+                </p>
+              )}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={!isLogin && !passwordsMatch && formData.confirmPassword !== ''}
+            className="w-full bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 font-bold py-3 sm:py-4 rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-sky-500/20 mt-3 sm:mt-4 text-sm sm:text-base"
+          >
             {isLogin ? 'ВОЙТИ В СИСТЕМУ' : 'ЗАРЕГИСТРИРОВАТЬСЯ'}
           </button>
         </form>
@@ -80,7 +157,7 @@ const Login = () => {
         {/* Переключатель */}
         <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-800 text-center">
           <button 
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={handleSwitch}
             className="text-slate-400 text-xs sm:text-sm hover:text-sky-400 transition-colors"
           >
             {isLogin ? (

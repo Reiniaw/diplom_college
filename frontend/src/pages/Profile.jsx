@@ -5,6 +5,34 @@ import { getHeaders } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
 import API_BASE from '../utils/config';
 
+// Инпут пароля с кнопкой показать/скрыть
+function PasswordInput({ placeholder, value, onChange, error = false }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        placeholder={placeholder}
+        autoComplete="new-password"
+        value={value}
+        onChange={onChange}
+        className={`w-full bg-slate-900 border p-3 sm:p-4 rounded-2xl outline-none focus:ring-1 transition-colors text-sm pr-24 ${
+          error
+            ? 'border-rose-500/70 focus:border-rose-500 focus:ring-rose-500'
+            : 'border-slate-700 focus:border-sky-500 focus:ring-sky-500'
+        }`}
+      />
+      <button
+        type="button"
+        onClick={() => setShow(s => !s)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-colors px-2 py-1 rounded-lg hover:bg-slate-800"
+      >
+        {show ? 'Скрыть' : 'Показать'}
+      </button>
+    </div>
+  );
+}
+
 export default function Profile() {
   const [user, setUser] = useState(null);
   const [employees, setEmployees] = useState([]);
@@ -12,21 +40,24 @@ export default function Profile() {
   const [newEmployee, setNewEmployee] = useState({ username: '', password: '', role: 'seller' });
   const [myOrders, setMyOrders] = useState([]);
 
-  // Вкладки профиля
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'orders' | 'favorites'
-
-  // Избранное
+  const [activeTab, setActiveTab] = useState('profile');
   const [favorites, setFavorites] = useState([]);
   const [favLoading, setFavLoading] = useState(false);
 
-  // Редактирование профиля
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
-    email: '', phone: '', address: '', first_name: '', last_name: '',
-    current_password: '', new_password: ''
+    username: '', email: '', phone: '', address: '',
+    first_name: '', last_name: '',
+    current_password: '', new_password: '', confirm_password: ''
   });
 
-  // Статистика директора
+  // Email verification state
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifySent, setVerifySent] = useState(false);
+
+  // Показ/скрытие секции смены пароля
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+
   const [stats, setStats] = useState(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -55,9 +86,15 @@ export default function Profile() {
       .then(res => {
         setUser(res.data);
         setProfileData({
-          email: res.data.email || '', phone: res.data.phone || '',
-          address: res.data.address || '', first_name: res.data.first_name || '',
-          last_name: res.data.last_name || '', current_password: '', new_password: ''
+          username: res.data.username || '',
+          email: res.data.email || '',
+          phone: res.data.phone || '',
+          address: res.data.address || '',
+          first_name: res.data.first_name || '',
+          last_name: res.data.last_name || '',
+          current_password: '',
+          new_password: '',
+          confirm_password: ''
         });
       })
       .catch(() => { localStorage.clear(); navigate('/login'); });
@@ -89,23 +126,55 @@ export default function Profile() {
     e.preventDefault();
     try {
       const updateData = {
-        email: profileData.email, phone: profileData.phone,
-        address: profileData.address, first_name: profileData.first_name,
-        last_name: profileData.last_name
+        username: profileData.username,
+        email: profileData.email,
+        phone: profileData.phone,
+        address: profileData.address,
+        first_name: profileData.first_name,
+        last_name: profileData.last_name,
       };
       if (profileData.new_password) {
-        if (!profileData.current_password) { toast.addToast("Введите текущий пароль для смены пароля", "error"); return; }
+        if (!profileData.current_password) {
+          toast.addToast("Введите текущий пароль для смены пароля", "error");
+          return;
+        }
+        if (profileData.new_password !== profileData.confirm_password) {
+          toast.addToast("Новые пароли не совпадают", "error");
+          return;
+        }
         updateData.current_password = profileData.current_password;
         updateData.new_password = profileData.new_password;
       }
       const res = await axios.patch(`${API_BASE}me/`, updateData, { headers: getHeaders() });
       setUser(res.data);
+      window.dispatchEvent(new Event('userUpdated'));
       toast.addToast("Профиль успешно обновлен! ✅");
       setIsEditingProfile(false);
-      setProfileData(prev => ({ ...prev, current_password: '', new_password: '' }));
+      setProfileData(prev => ({ ...prev, current_password: '', new_password: '', confirm_password: '' }));
+      // Если пароль изменён — перелогиниться
+      if (profileData.new_password) {
+        toast.addToast("Пароль изменён. Войдите снова.");
+        setTimeout(() => { localStorage.clear(); navigate('/login'); }, 1500);
+      }
     } catch (err) {
-      const errMsg = err.response?.data?.detail || Object.values(err.response?.data || {})[0]?.[0] || "Ошибка обновления";
+      const errMsg = err.response?.data?.detail
+        || Object.values(err.response?.data || {})[0]?.[0]
+        || "Ошибка обновления";
       toast.addToast(errMsg, "error");
+    }
+  };
+
+  const handleSendVerification = async () => {
+    setVerifyLoading(true);
+    try {
+      await axios.post(`${API_BASE}send-verification/`, {}, { headers: getHeaders() });
+      setVerifySent(true);
+      toast.addToast("Письмо отправлено! Проверьте почту.");
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Ошибка отправки письма";
+      toast.addToast(msg, "error");
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -175,12 +244,45 @@ export default function Profile() {
     <div className="min-h-screen bg-slate-950 p-4 sm:p-6 lg:p-8 text-white">
       <div className="max-w-6xl mx-auto">
 
+        {/* ── БАННЕР ПОДТВЕРЖДЕНИЯ EMAIL ── */}
+        {user.email && !user.email_verified && (
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="text-amber-400 text-xl flex-shrink-0">⚠</span>
+              <div>
+                <p className="text-amber-300 font-bold text-sm">Email не подтверждён</p>
+                <p className="text-amber-400/70 text-xs mt-0.5">
+                  Подтвердите <span className="text-amber-300 font-mono">{user.email}</span>, чтобы получать уведомления о заказах
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleSendVerification}
+              disabled={verifyLoading || verifySent}
+              className="flex-shrink-0 px-5 py-2 bg-amber-400 hover:bg-amber-300 disabled:bg-amber-400/40 text-slate-950 font-black text-xs uppercase rounded-xl transition-all active:scale-95"
+            >
+              {verifyLoading ? 'Отправка...' : verifySent ? '✓ Письмо отправлено' : 'Отправить письмо'}
+            </button>
+          </div>
+        )}
+
+        {/* Баннер: email вообще не указан */}
+        {!user.email && (
+          <div className="mb-6 flex items-center gap-3 bg-slate-800/60 border border-slate-700 rounded-2xl px-5 py-4">
+            <span className="text-slate-400 text-xl">📧</span>
+            <p className="text-slate-400 text-sm">
+              Укажите email в профиле, чтобы получать чеки и уведомления о заказах
+            </p>
+          </div>
+        )}
+
         {/* ШАПКА */}
         <header className="mb-8 sm:mb-12 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4">
           <div>
             <h1 className="text-3xl sm:text-5xl font-black italic tracking-tighter uppercase mb-1 sm:mb-2">Личный кабинет</h1>
             <p className="text-sky-400 font-medium font-mono text-xs sm:text-lg uppercase tracking-widest">
               {user.username} <span className="text-slate-600 ml-2 text-xs sm:text-base">[{user.role}]</span>
+              {user.email_verified && <span className="ml-3 text-emerald-400 text-xs font-normal">✓ email подтверждён</span>}
             </p>
           </div>
           <button
@@ -191,7 +293,7 @@ export default function Profile() {
           </button>
         </header>
 
-        {/* ВКЛАДКИ (только для обычных пользователей — персонал видит весь кабинет) */}
+        {/* ВКЛАДКИ */}
         {!isStaff && (
           <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-800 mb-8 w-fit">
             {[
@@ -217,7 +319,7 @@ export default function Profile() {
               <div className="p-4 sm:p-6 lg:p-8 border-b border-slate-800 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-slate-900/50 gap-3">
                 <h2 className="text-lg sm:text-2xl font-bold uppercase italic tracking-tight">Мой Профиль</h2>
                 <button
-                  onClick={() => setIsEditingProfile(!isEditingProfile)}
+                  onClick={() => { setIsEditingProfile(!isEditingProfile); setShowPasswordSection(false); }}
                   className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-bold transition-all shadow-lg text-xs uppercase ${isEditingProfile ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-sky-500 hover:bg-sky-400 text-slate-950'}`}
                 >
                   {isEditingProfile ? 'Отмена' : '✎ Редактировать'}
@@ -226,33 +328,154 @@ export default function Profile() {
 
               {isEditingProfile ? (
                 <form onSubmit={handleSaveProfile} className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+                  {/* Логин */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">Логин</label>
+                    <input
+                      type="text"
+                      autoComplete="username"
+                      placeholder="Новый логин"
+                      className="w-full bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
+                      value={profileData.username}
+                      onChange={e => setProfileData({ ...profileData, username: e.target.value })}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <input type="text" placeholder="Имя" className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm" value={profileData.first_name} onChange={e => setProfileData({ ...profileData, first_name: e.target.value })} />
-                    <input type="text" placeholder="Фамилия" className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm" value={profileData.last_name} onChange={e => setProfileData({ ...profileData, last_name: e.target.value })} />
-                    <input type="email" placeholder="Email" className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm" value={profileData.email} onChange={e => setProfileData({ ...profileData, email: e.target.value })} />
-                    <input type="tel" placeholder="Номер телефона" className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm" value={profileData.phone} onChange={e => setProfileData({ ...profileData, phone: e.target.value })} />
+                    <input
+                      type="text"
+                      placeholder="Имя"
+                      autoComplete="given-name"
+                      className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
+                      value={profileData.first_name}
+                      onChange={e => setProfileData({ ...profileData, first_name: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Фамилия"
+                      autoComplete="family-name"
+                      className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
+                      value={profileData.last_name}
+                      onChange={e => setProfileData({ ...profileData, last_name: e.target.value })}
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      autoComplete="email"
+                      className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
+                      value={profileData.email}
+                      onChange={e => setProfileData({ ...profileData, email: e.target.value })}
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Номер телефона"
+                      autoComplete="tel"
+                      className="bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
+                      value={profileData.phone}
+                      onChange={e => setProfileData({ ...profileData, phone: e.target.value })}
+                    />
                   </div>
-                  <textarea placeholder="Адрес доставки" rows="3" className="w-full bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm" value={profileData.address} onChange={e => setProfileData({ ...profileData, address: e.target.value })} />
-                  <div className="bg-slate-950/50 p-4 sm:p-6 rounded-2xl border border-slate-800">
-                    <h4 className="text-xs sm:text-sm font-bold text-sky-500 mb-3 sm:mb-4 uppercase">Смена пароля (опционально)</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <input type="password" placeholder="Текущий пароль" className="bg-slate-900 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm" value={profileData.current_password} onChange={e => setProfileData({ ...profileData, current_password: e.target.value })} />
-                      <input type="password" placeholder="Новый пароль" className="bg-slate-900 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm" value={profileData.new_password} onChange={e => setProfileData({ ...profileData, new_password: e.target.value })} />
-                    </div>
+
+                  <textarea
+                    placeholder="Адрес доставки"
+                    rows="3"
+                    autoComplete="street-address"
+                    className="w-full bg-slate-950 border border-slate-700 p-3 sm:p-4 rounded-2xl outline-none focus:border-sky-500 transition-colors text-sm"
+                    value={profileData.address}
+                    onChange={e => setProfileData({ ...profileData, address: e.target.value })}
+                  />
+
+                  {/* Смена пароля */}
+                  <div className="bg-slate-950/50 rounded-2xl border border-slate-800 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPasswordSection(s => !s);
+                        // Сбрасываем поля при закрытии
+                        if (showPasswordSection) {
+                          setProfileData(prev => ({ ...prev, current_password: '', new_password: '', confirm_password: '' }));
+                        }
+                      }}
+                      className="w-full flex justify-between items-center p-4 sm:p-5 hover:bg-slate-800/30 transition-colors"
+                    >
+                      <span className="text-xs sm:text-sm font-bold text-sky-500 uppercase tracking-wider">
+                        🔐 Сменить пароль
+                      </span>
+                      <span className="text-slate-500 text-xs font-bold">
+                        {showPasswordSection ? '▲ Свернуть' : '▼ Развернуть'}
+                      </span>
+                    </button>
+
+                    {showPasswordSection && (
+                      <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-3">
+                        {/* Honeypot — чтобы браузер не вставлял автозаполнение */}
+                        <input type="password" style={{ display: 'none' }} autoComplete="current-password" readOnly tabIndex={-1} />
+
+                        <PasswordInput
+                          placeholder="Текущий пароль"
+                          value={profileData.current_password}
+                          onChange={e => setProfileData({ ...profileData, current_password: e.target.value })}
+                        />
+                        <PasswordInput
+                          placeholder="Новый пароль"
+                          value={profileData.new_password}
+                          onChange={e => setProfileData({ ...profileData, new_password: e.target.value })}
+                        />
+                        <div>
+                          <PasswordInput
+                            placeholder="Подтвердите новый пароль"
+                            value={profileData.confirm_password}
+                            onChange={e => setProfileData({ ...profileData, confirm_password: e.target.value })}
+                            error={profileData.confirm_password !== '' && profileData.new_password !== profileData.confirm_password}
+                          />
+                          {profileData.confirm_password !== '' && (
+                            <p className={`text-xs mt-1.5 ml-1 font-semibold ${profileData.new_password === profileData.confirm_password ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {profileData.new_password === profileData.confirm_password ? '✓ Пароли совпадают' : '✕ Пароли не совпадают'}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-slate-600 text-xs ml-1">
+                          Заполните все три поля чтобы сменить пароль. После смены потребуется войти снова.
+                        </p>
+                      </div>
+                    )}
                   </div>
+
                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-3 sm:pt-4">
                     <button type="submit" className="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-3 sm:py-4 rounded-2xl uppercase shadow-lg shadow-sky-500/20 transition-all active:scale-95 text-sm">Сохранить изменения</button>
-                    <button type="button" onClick={() => setIsEditingProfile(false)} className="flex-1 border border-slate-700 hover:bg-slate-800 font-bold py-4 rounded-2xl uppercase transition-colors text-sm">Отмена</button>
+                    <button type="button" onClick={() => { setIsEditingProfile(false); setShowPasswordSection(false); }} className="flex-1 border border-slate-700 hover:bg-slate-800 font-bold py-4 rounded-2xl uppercase transition-colors text-sm">Отмена</button>
                   </div>
                 </form>
               ) : (
                 <div className="p-8 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div><p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Имя</p><p className="text-xl font-bold">{user.first_name || '—'}</p></div>
-                    <div><p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Фамилия</p><p className="text-xl font-bold">{user.last_name || '—'}</p></div>
-                    <div><p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Email</p><p className="text-lg font-mono text-sky-400">{user.email || '—'}</p></div>
-                    <div><p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Телефон</p><p className="text-lg font-mono">{user.phone || '—'}</p></div>
-                    <div className="md:col-span-2"><p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Адрес доставки</p><p className="text-lg leading-relaxed">{user.address || '—'}</p></div>
+                    {[
+                      { label: 'Логин', value: user.username },
+                      { label: 'Email', value: user.email ? (
+                        <span className="flex items-center gap-2">
+                          {user.email}
+                          {user.email_verified
+                            ? <span className="text-emerald-400 text-xs font-bold px-2 py-0.5 bg-emerald-400/10 border border-emerald-400/20 rounded-full">✓ подтверждён</span>
+                            : <span className="text-amber-400 text-xs font-bold px-2 py-0.5 bg-amber-400/10 border border-amber-400/20 rounded-full">не подтверждён</span>
+                          }
+                        </span>
+                      ) : '—' },
+                      { label: 'Имя', value: user.first_name || '—' },
+                      { label: 'Фамилия', value: user.last_name || '—' },
+                      { label: 'Телефон', value: user.phone || '—' },
+                      { label: 'Роль', value: user.role },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">{label}</p>
+                        <p className="text-white font-bold text-sm">{value}</p>
+                      </div>
+                    ))}
+                    {user.address && (
+                      <div className="md:col-span-2">
+                        <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Адрес доставки</p>
+                        <p className="text-white font-bold text-sm">{user.address}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -261,37 +484,31 @@ export default function Profile() {
         )}
 
         {/* ── ВКЛАДКА: ИЗБРАННОЕ ── */}
-        {(activeTab === 'favorites' || isStaff) && (
-          <section className="mb-12 sm:mb-16">
-            {isStaff && (
-              <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4 mb-8">
-                <span className="w-12 h-1 bg-rose-500"></span> Избранное
-              </h2>
-            )}
+        {activeTab === 'favorites' && !isStaff && (
+          <section className="mb-12">
+            <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4 mb-8">
+              <span className="w-12 h-1 bg-sky-500"></span> Избранное
+            </h2>
             {favLoading ? (
-              <div className="text-center py-16 text-slate-500 font-mono uppercase text-xs tracking-widest animate-pulse">Загрузка избранного...</div>
+              <p className="text-slate-500 italic">Загрузка...</p>
             ) : favorites.length === 0 ? (
-              <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-[3rem] p-16 text-center">
-                <div className="text-5xl mb-4 opacity-30">♡</div>
-                <p className="text-slate-500 italic mb-4">Вы ещё ничего не добавляли в избранное</p>
-                <Link to="/" className="text-sky-500 font-bold hover:text-sky-400 transition-colors uppercase text-xs tracking-widest">Перейти в каталог →</Link>
+              <div className="bg-slate-900/50 p-20 rounded-[3rem] border border-slate-800 border-dashed text-center">
+                <p className="text-slate-500 italic">Избранное пусто</p>
+                <Link to="/" className="text-sky-500 font-bold mt-4 inline-block hover:underline">Перейти в магазин →</Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {favorites.map(fav => {
                   const p = fav.product;
-                  const img = p.images?.[0]?.image;
                   return (
-                    <div key={fav.id} className="bg-slate-900 border border-slate-800 rounded-[2rem] overflow-hidden hover:border-slate-700 transition-all group">
-                      {/* Фото */}
-                      <Link to={`/product/${p.id}`} className="block h-44 bg-slate-800 relative overflow-hidden">
-                        {img ? (
-                          <img src={img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-4xl opacity-20">📸</div>
-                        )}
-                        <div className="absolute top-3 right-3">
-                          <span className="bg-sky-500 text-slate-950 px-3 py-1 rounded-lg font-black text-sm font-mono shadow-lg">
+                    <div key={fav.id} className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden group hover:border-sky-500/50 transition-all shadow-xl">
+                      <Link to={`/product/${p.id}`} className="block relative aspect-square bg-slate-800 overflow-hidden">
+                        {p.images?.[0]?.image
+                          ? <img src={p.images[0].image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={p.name} />
+                          : <div className="w-full h-full flex items-center justify-center text-slate-700 text-4xl">📸</div>
+                        }
+                        <div className="absolute top-3 left-3">
+                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-950/80 text-sky-400 font-mono">
                             {Number(p.price).toLocaleString()}₸
                           </span>
                         </div>
@@ -301,7 +518,6 @@ export default function Profile() {
                           </span>
                         </div>
                       </Link>
-
                       <div className="p-5">
                         <Link to={`/product/${p.id}`}>
                           <h3 className="font-black text-sm mb-1 group-hover:text-sky-400 transition-colors line-clamp-2">{p.name}</h3>
@@ -412,7 +628,7 @@ export default function Profile() {
                     <div className="p-8 bg-slate-800/20 border-b border-slate-800">
                       <form onSubmit={handleHire} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <input type="text" placeholder="Логин" required className="bg-slate-950 border border-slate-700 p-3 rounded-xl outline-none" onChange={e => setNewEmployee({ ...newEmployee, username: e.target.value })} />
-                        <input type="password" placeholder="Пароль" required className="bg-slate-950 border border-slate-700 p-3 rounded-xl outline-none" onChange={e => setNewEmployee({ ...newEmployee, password: e.target.value })} />
+                        <input type="password" placeholder="Пароль" required autoComplete="new-password" className="bg-slate-950 border border-slate-700 p-3 rounded-xl outline-none" onChange={e => setNewEmployee({ ...newEmployee, password: e.target.value })} />
                         <select className="bg-slate-950 border border-slate-700 p-3 rounded-xl outline-none text-sm" onChange={e => setNewEmployee({ ...newEmployee, role: e.target.value })}>
                           <option value="seller">Продавец</option>
                           <option value="manager">Руководитель</option>

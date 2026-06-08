@@ -118,40 +118,46 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'role', 'phone', 'address', 'first_name', 'last_name']
 
 class UserUpdateSerializer(serializers.ModelSerializer):
-    """Для обновления профиля пользователем"""
-    current_password = serializers.CharField(write_only=True, required=False)
-    new_password = serializers.CharField(write_only=True, required=False)
-    
+    current_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    new_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
     class Meta:
         model = User
-        fields = ['email', 'phone', 'address', 'first_name', 'last_name', 'current_password', 'new_password']
-    
-    def validate(self, data):
+        fields = ['username', 'email', 'first_name', 'last_name',  # добавили username
+                  'phone', 'address', 'current_password', 'new_password']
+
+    def validate_username(self, value):
         user = self.instance
-        current_password = data.get('current_password')
+        if User.objects.filter(username=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("Этот логин уже занят")
+        return value
+
+    def validate(self, data):
         new_password = data.get('new_password')
-        
-        # Если пытаемся менять пароль
+        current_password = data.get('current_password')
         if new_password:
             if not current_password:
-                raise serializers.ValidationError({"current_password": "Требуется текущий пароль для изменения пароля"})
-            if not user.check_password(current_password):
-                raise serializers.ValidationError({"current_password": "Неверный пароль"})
-            if len(new_password) < 6:
-                raise serializers.ValidationError({"new_password": "Пароль должен содержать минимум 6 символов"})
-        
+                raise serializers.ValidationError({'current_password': 'Введите текущий пароль'})
+            if not self.instance.check_password(current_password):
+                raise serializers.ValidationError({'current_password': 'Неверный текущий пароль'})
         return data
-    
+
     def update(self, instance, validated_data):
-        new_password = validated_data.pop('new_password', None)
         validated_data.pop('current_password', None)
-        
+        new_password = validated_data.pop('new_password', None)
+
+        # Если email изменился — сбросить верификацию
+        new_email = validated_data.get('email')
+        if new_email and new_email != instance.email:
+            instance.email_verified = False
+            instance.email_verify_token = None
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        
+
         if new_password:
             instance.set_password(new_password)
-        
+
         instance.save()
         return instance
 
@@ -184,3 +190,9 @@ class ReviewSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.user == request.user
         return False
+    
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name',
+                  'role', 'phone', 'address', 'email_verified']  # добавили email_verified

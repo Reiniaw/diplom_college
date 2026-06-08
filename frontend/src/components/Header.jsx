@@ -6,18 +6,27 @@ import { getHeaders } from '../utils/helpers';
 export default function Navbar() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
-  const token = localStorage.getItem('access');
 
   useEffect(() => {
-    if (token) {
-      axios.get('http://127.0.0.1:8000/api/me/', {
-        headers: getHeaders()
-      })
-      .then(res => setUser(res.data))
-      .catch(() => setUser(null));
-    }
-  }, [token]);
+    const loadUser = () => {
+      const token = localStorage.getItem('access');
+      if (token) {
+        axios.get('http://127.0.0.1:8000/api/me/', { headers: getHeaders() })
+          .then(res => setUser(res.data))
+          .catch(() => setUser(null));
+      } else {
+        setUser(null);
+      }
+    };
 
+    loadUser();
+
+    // Обновляем хедер когда профиль сохранён или пользователь вошёл/вышел
+    window.addEventListener('userUpdated', loadUser);
+    return () => window.removeEventListener('userUpdated', loadUser);
+  }, []);
+
+  const token = localStorage.getItem('access');
   const isStaff = user && ['director', 'manager', 'seller'].includes(user.role);
 
   return (

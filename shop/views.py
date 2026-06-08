@@ -11,6 +11,8 @@ from django.db.models import F
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings as django_settings
+import secrets
+from django.urls import reverse
 
 from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue, Favorite, Review
 from .serializers import (
@@ -622,3 +624,76 @@ class ReviewViewSet(viewsets.ViewSet):
             return Response(status=204)
         except Review.DoesNotExist:
             return Response({'detail': 'Отзыв не найден или вы не автор'}, status=404)
+
+
+class SendEmailVerificationView(APIView):
+    """POST /api/send-verification/ — отправить письмо с подтверждением"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if user.email_verified:
+            return Response({'detail': 'Email уже подтверждён'}, status=400)
+        if not user.email:
+            return Response({'detail': 'Сначала укажите email в профиле'}, status=400)
+
+        # Генерируем токен
+        token = secrets.token_urlsafe(32)
+        user.email_verify_token = token
+        user.save(update_fields=['email_verify_token'])
+
+        # Ссылка подтверждения — фронтенд перехватит её
+        verify_url = f"{django_settings.FRONTEND_URL}/verify-email?token={token}"
+
+        html_message = f"""
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head><meta charset="UTF-8"></head>
+        <body style="margin:0;padding:0;background:#0f172a;font-family:Arial,sans-serif">
+          <div style="max-width:500px;margin:0 auto;padding:40px 20px;text-align:center">
+            <h1 style="color:#38bdf8;font-size:24px;font-style:italic;font-weight:900;text-transform:uppercase">PRO LENS</h1>
+            <div style="background:#1e293b;border-radius:20px;padding:32px;margin-top:24px">
+              <p style="color:#e2e8f0;font-size:16px;margin:0 0 24px">Привет, <b>{user.username}</b>!</p>
+              <p style="color:#94a3b8;font-size:14px;margin:0 0 32px">Нажми кнопку ниже, чтобы подтвердить свой email-адрес.</p>
+              <a href="{verify_url}" style="display:inline-block;background:#38bdf8;color:#0f172a;font-weight:900;font-size:14px;text-transform:uppercase;letter-spacing:0.1em;padding:16px 40px;border-radius:12px;text-decoration:none">
+                Подтвердить Email
+              </a>
+              <p style="color:#475569;font-size:12px;margin:24px 0 0">Ссылка действительна 24 часа.<br>Если вы не запрашивали — проигнорируйте это письмо.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+
+        try:
+            send_mail(
+                subject='Pro Lens — Подтверждение email',
+                message=f'Подтвердите email: {verify_url}',
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"[EMAIL] ❌ Ошибка отправки верификации: {e}")
+            return Response({'detail': 'Ошибка отправки письма'}, status=500)
+
+        return Response({'detail': 'Письмо отправлено'})
+
+
+class VerifyEmailView(APIView):
+    """GET /api/verify-email/?token=... — подтвердить email по токену"""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.query_params.get('token')
+        if not token:
+            return Response({'detail': 'Токен не указан'}, status=400)
+        try:
+            user = User.objects.get(email_verify_token=token)
+            user.email_verified = True
+            user.email_verify_token = None
+            user.save(update_fields=['email_verified', 'email_verify_token'])
+            return Response({'detail': 'Email успешно подтверждён!'})
+        except User.DoesNotExist:
+            return Response({'detail': 'Email уже подтверждён!'})

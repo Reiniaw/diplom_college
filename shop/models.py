@@ -162,7 +162,9 @@ class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Номер телефона")
     address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Адрес доставки")
 
-    # Это поможет нам в будущем не создавать ошибки с миграциями
+    email_verified = models.BooleanField(default=False, verbose_name="Email подтверждён")
+    email_verify_token = models.CharField(max_length=64, blank=True, null=True)
+
     class Meta:
         verbose_name = 'Пользователь'
         verbose_name_plural = 'Пользователи'

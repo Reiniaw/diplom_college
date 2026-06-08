@@ -105,14 +105,7 @@ AUTH_USER_MODEL = 'shop.User'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# --- EMAIL (чеки и уведомления) ---
-# Настрой эти переменные в своём .env файле:
-#
-#   EMAIL_HOST_USER=твой@gmail.com
-#   EMAIL_HOST_PASSWORD=пароль_приложения_google
-#
-# Как получить пароль приложения Gmail:
-# Google аккаунт → Безопасность → Двухэтапная аутентификация → Пароли приложений
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
@@ -120,3 +113,5 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@prolens.kz')
+
+FRONTEND_URL = "http://localhost:3000"
