@@ -59,8 +59,17 @@ export default function Profile() {
   const [showPasswordSection, setShowPasswordSection] = useState(false);
 
   const [stats, setStats] = useState(null);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const _now = new Date();
+  const _y = _now.getFullYear(), _m = String(_now.getMonth() + 1).padStart(2, '0');
+  const _lastDay = String(new Date(_y, _now.getMonth() + 1, 0).getDate()).padStart(2, '0');
+  const [dateFrom, setDateFrom] = useState(`${_y}-${_m}-01`);
+  const [dateTo, setDateTo] = useState(`${_y}-${_m}-${_lastDay}`);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeesShown, setEmployeesShown] = useState(10);
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
+  const [ordersPage, setOrdersPage] = useState(1);
+  const ORDERS_PER_PAGE = 5;
+  const toggleOrder = (id) => setExpandedOrders(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
   const navigate = useNavigate();
   const token = localStorage.getItem('access');
@@ -554,14 +563,31 @@ export default function Profile() {
                   <h2 className="text-[10px] font-black text-sky-500 uppercase tracking-[0.4em] flex items-center gap-4">
                     <span className="w-12 h-px bg-sky-500/30"></span> Финансовый мониторинг
                   </h2>
-                  <div className="flex items-center gap-3 bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-xl">
-                    <input type="date" className="bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 outline-none focus:border-sky-500 transition-colors" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                    <span className="text-slate-600 font-bold">—</span>
-                    <input type="date" className="bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 outline-none focus:border-sky-500 transition-colors" value={dateTo} onChange={e => setDateTo(e.target.value)} />
-                    <button onClick={() => fetchStats()} className="bg-sky-500 hover:bg-sky-400 text-slate-950 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-sky-500/20 active:scale-95">Применить</button>
-                    {(dateFrom || dateTo) && (
-                      <button onClick={() => { setDateFrom(''); setDateTo(''); fetchStats('', ''); }} className="text-rose-500 hover:text-rose-400 text-[10px] font-black uppercase px-2 transition-colors">Сброс</button>
-                    )}
+                  <div className="flex flex-col gap-2 items-end">
+                    {/* Быстрые пресеты */}
+                    <div className="flex gap-1.5 flex-wrap justify-end">
+                      {[
+                        { label: 'Сегодня', fn: () => { const d = new Date(); const s = d.toISOString().slice(0,10); setDateFrom(s); setDateTo(s); fetchStats(s, s); } },
+                        { label: '7 дней', fn: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate()-6); const f=from.toISOString().slice(0,10), t=to.toISOString().slice(0,10); setDateFrom(f); setDateTo(t); fetchStats(f,t); } },
+                        { label: 'Этот месяц', fn: () => { const n=new Date(); const y=n.getFullYear(),m=String(n.getMonth()+1).padStart(2,'0'); const ld=String(new Date(y,n.getMonth()+1,0).getDate()).padStart(2,'0'); const f=`${y}-${m}-01`,t=`${y}-${m}-${ld}`; setDateFrom(f); setDateTo(t); fetchStats(f,t); } },
+                        { label: 'Прошлый месяц', fn: () => { const n=new Date(); const d=new Date(n.getFullYear(), n.getMonth()-1, 1); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'); const ld=String(new Date(y,d.getMonth()+1,0).getDate()).padStart(2,'0'); const f=`${y}-${m}-01`,t=`${y}-${m}-${ld}`; setDateFrom(f); setDateTo(t); fetchStats(f,t); } },
+                        { label: 'Год', fn: () => { const y=new Date().getFullYear(); const f=`${y}-01-01`,t=`${y}-12-31`; setDateFrom(f); setDateTo(t); fetchStats(f,t); } },
+                      ].map(({ label, fn }) => (
+                        <button key={label} onClick={fn} className="px-3 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:border-sky-500/60 hover:text-sky-300 text-[10px] font-bold uppercase transition-all">
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Ручной ввод дат */}
+                    <div className="flex items-center gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-xl">
+                      <input type="date" className="bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 outline-none focus:border-sky-500 transition-colors" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                      <span className="text-slate-600 font-bold">—</span>
+                      <input type="date" className="bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs text-sky-400 outline-none focus:border-sky-500 transition-colors" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                      <button onClick={() => fetchStats()} className="bg-sky-500 hover:bg-sky-400 text-slate-950 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-sky-500/20 active:scale-95">Применить</button>
+                      {(dateFrom || dateTo) && (
+                        <button onClick={() => { setDateFrom(''); setDateTo(''); fetchStats('', ''); }} className="text-rose-500 hover:text-rose-400 text-[10px] font-black uppercase px-2 transition-colors">✕</button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {stats && (
@@ -637,6 +663,22 @@ export default function Profile() {
                       </form>
                     </div>
                   )}
+                  {/* Поиск */}
+                  <div className="px-8 pt-6 pb-2">
+                    <div className="relative max-w-sm">
+                      <input
+                        type="text"
+                        placeholder="Поиск по имени или должности..."
+                        value={employeeSearch}
+                        onChange={e => { setEmployeeSearch(e.target.value); setEmployeesShown(10); }}
+                        className="w-full bg-slate-950 border border-slate-800 p-2.5 pl-9 rounded-xl outline-none focus:border-sky-500 transition-colors text-sm text-white placeholder:text-slate-600"
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-sm">🔍</span>
+                      {employeeSearch && (
+                        <button onClick={() => setEmployeeSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white text-xs">✕</button>
+                      )}
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
@@ -645,22 +687,50 @@ export default function Profile() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/50">
-                        {employees.map(emp => (
-                          <tr key={emp.id} className="hover:bg-slate-800/20 transition-colors">
-                            <td className="p-6 text-slate-500 text-sm font-mono">{emp.id}</td>
-                            <td className="p-6 font-bold">{emp.username} {emp.id === user.id && <span className="text-sky-500 ml-2">●</span>}</td>
-                            <td className="p-6">
-                              <select className="bg-slate-800 border border-slate-700 p-1.5 rounded-lg text-[10px] outline-none" value={emp.role} disabled={emp.id === user.id} onChange={e => handleChangeRole(emp.id, e.target.value)}>
-                                <option value="user">Клиент</option><option value="seller">Продавец</option><option value="manager">Руководитель</option><option value="director">Директор</option>
-                              </select>
-                            </td>
-                            <td className="p-6 text-right">
-                              {emp.id !== user.id && <button onClick={() => handleFire(emp.id, emp.username)} className="text-rose-500 hover:text-rose-400 font-bold text-[10px] uppercase">Уволить</button>}
-                            </td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          const roleLabels = { user: 'Клиент', seller: 'Продавец', manager: 'Руководитель', director: 'Директор' };
+                          const filtered = employees.filter(emp => {
+                            const q = employeeSearch.toLowerCase();
+                            return !q || emp.username.toLowerCase().includes(q) || (roleLabels[emp.role] || emp.role).toLowerCase().includes(q);
+                          });
+                          const visible = filtered.slice(0, employeesShown);
+                          return <>
+                            {visible.map(emp => (
+                              <tr key={emp.id} className="hover:bg-slate-800/20 transition-colors">
+                                <td className="p-6 text-slate-500 text-sm font-mono">{emp.id}</td>
+                                <td className="p-6 font-bold">{emp.username} {emp.id === user.id && <span className="text-sky-500 ml-2">●</span>}</td>
+                                <td className="p-6">
+                                  <select className="bg-slate-800 border border-slate-700 p-1.5 rounded-lg text-[10px] outline-none" value={emp.role} disabled={emp.id === user.id} onChange={e => handleChangeRole(emp.id, e.target.value)}>
+                                    <option value="user">Клиент</option><option value="seller">Продавец</option><option value="manager">Руководитель</option><option value="director">Директор</option>
+                                  </select>
+                                </td>
+                                <td className="p-6 text-right">
+                                  {emp.id !== user.id && <button onClick={() => handleFire(emp.id, emp.username)} className="text-rose-500 hover:text-rose-400 font-bold text-[10px] uppercase">Уволить</button>}
+                                </td>
+                              </tr>
+                            ))}
+                            {filtered.length === 0 && (
+                              <tr><td colSpan={4} className="p-8 text-center text-slate-500 text-sm italic">Никого не нашли по запросу «{employeeSearch}»</td></tr>
+                            )}
+                          </>;
+                        })()}
                       </tbody>
                     </table>
+                    {/* Показать ещё */}
+                    {(() => {
+                      const filtered = employees.filter(emp => {
+                        const q = employeeSearch.toLowerCase();
+                        const roleLabels = { user: 'Клиент', seller: 'Продавец', manager: 'Руководитель', director: 'Директор' };
+                        return !q || emp.username.toLowerCase().includes(q) || (roleLabels[emp.role] || emp.role).toLowerCase().includes(q);
+                      });
+                      return filtered.length > employeesShown ? (
+                        <div className="p-6 border-t border-slate-800 text-center">
+                          <button onClick={() => setEmployeesShown(n => n + 10)} className="text-sky-500 hover:text-sky-400 text-xs font-bold uppercase transition-colors">
+                            Показать ещё ({filtered.length - employeesShown} чел.) ↓
+                          </button>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
               </section>
@@ -690,62 +760,110 @@ export default function Profile() {
             )}
 
             {/* ИСТОРИЯ ЗАКАЗОВ */}
-            <section className="space-y-8">
-              <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4">
-                <span className="w-12 h-1 bg-sky-500"></span> Личная история заказов
-              </h2>
-              <div className="grid gap-6">
-                {myOrders.map(order => (
-                  <div key={order.id} className="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-xl">
-                    <div className="p-6 bg-slate-800/30 flex justify-between items-center border-b border-slate-800 gap-4 flex-wrap">
-                      <div>
-                        <span className="text-sky-500 font-mono font-bold uppercase tracking-tighter">ЗАКАЗ #{order.id}</span>
-                        <p className="text-slate-500 text-[10px] mt-1 uppercase">{new Date(order.created_at).toLocaleString()}</p>
-                      </div>
-                      {isStaff ? (
-                        <select value={order.status} onChange={e => updateOrderStatus(order.id, e.target.value)} className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-black uppercase text-slate-300 outline-none focus:border-sky-500 transition-colors">
-                          <option value="placed">Оформлен</option><option value="shipped">Отправлен</option><option value="delivered">Доставлен</option><option value="cancelled">Отменен</option>
-                        </select>
-                      ) : (
-                        <span className="px-4 py-1 bg-slate-800 rounded-full text-[10px] font-black uppercase text-slate-400 border border-slate-700">
-                          {order.status === 'placed' ? 'Оформлен' : order.status === 'shipped' ? 'Отправлен' : order.status === 'delivered' ? 'Доставлен' : 'Отменен'}
-                        </span>
-                      )}
-                      <Link to={`/order/${order.id}`} className="text-sky-500 hover:text-sky-400 text-xs font-bold transition-colors">Отследить →</Link>
-                    </div>
-                    <div className="p-6 space-y-4">
-                      {order.items.map(item => (
-                        <div key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-800/50 pb-4 last:border-0 last:pb-0">
-                          <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-slate-800 rounded-2xl overflow-hidden border border-slate-700 flex-shrink-0">
-                              {item.product_image ? <img src={item.product_image} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-slate-700">📸</div>}
-                            </div>
-                            <div>
-                              <p className="font-bold text-sm tracking-tight">{item.product_name}</p>
-                              <p className="text-[10px] text-slate-500">{item.quantity} шт. × {item.price} ₸</p>
-                            </div>
-                          </div>
-                          <p className="font-bold text-sm font-mono">{item.total_price} ₸</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-8 bg-slate-950/50 flex flex-col md:flex-row justify-between items-center gap-6">
-                      <div className="text-[10px] text-slate-500 italic uppercase">
-                        <p>📍 {order.address || 'Нет адреса'}</p>
-                        <p>📞 {order.phone || 'Нет контакта'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-slate-500 text-[10px] font-bold mb-1">Итого к оплате</p>
-                        <p className="text-3xl font-black italic">{order.total_price} ₸</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {myOrders.length === 0 && (
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-black uppercase italic tracking-tighter flex items-center gap-4">
+                  <span className="w-12 h-1 bg-sky-500"></span> Личная история заказов
+                </h2>
+                {myOrders.length > 0 && (
+                  <span className="text-slate-500 text-xs font-mono">
+                    {myOrders.length} {myOrders.length === 1 ? 'заказ' : myOrders.length < 5 ? 'заказа' : 'заказов'}
+                  </span>
+                )}
+              </div>
+              <div className="grid gap-4">
+                {myOrders.length === 0 ? (
                   <div className="bg-slate-900/50 p-20 rounded-[3rem] border border-slate-800 border-dashed text-center">
                     <p className="text-slate-500 italic">У вас пока нет оформленных покупок.</p>
                     <Link to="/" className="text-sky-500 font-bold mt-4 inline-block hover:underline">Перейти в магазин →</Link>
                   </div>
+                ) : (
+                  <>
+                    {myOrders.slice((ordersPage - 1) * ORDERS_PER_PAGE, ordersPage * ORDERS_PER_PAGE).map(order => {
+                      const isOpen = expandedOrders.has(order.id);
+                      const statusLabel = { placed: 'Оформлен', shipped: 'Отправлен', delivered: 'Доставлен', cancelled: 'Отменен' }[order.status] || order.status;
+                      const statusColor = { placed: 'text-sky-400 border-sky-500/30 bg-sky-500/10', shipped: 'text-amber-400 border-amber-500/30 bg-amber-500/10', delivered: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', cancelled: 'text-rose-400 border-rose-500/30 bg-rose-500/10' }[order.status] || 'text-slate-400 border-slate-700 bg-slate-800';
+                      return (
+                        <div key={order.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg transition-all hover:border-slate-700">
+                          {/* Шапка — кликабельная */}
+                          <button
+                            onClick={() => toggleOrder(order.id)}
+                            className="w-full p-5 flex items-center justify-between gap-4 text-left hover:bg-slate-800/20 transition-colors"
+                          >
+                            <div className="flex items-center gap-4 flex-wrap min-w-0">
+                              <span className="text-sky-500 font-mono font-bold text-sm whitespace-nowrap">#{order.id}</span>
+                              <span className="text-slate-500 text-xs">{new Date(order.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${statusColor}`}>{statusLabel}</span>
+                              <span className="text-slate-400 text-xs font-mono">{order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'товар' : 'товара'}</span>
+                            </div>
+                            <div className="flex items-center gap-4 flex-shrink-0">
+                              <span className="font-black text-lg font-mono">{Number(order.total_price).toLocaleString()} <span className="text-sky-500 text-sm font-normal">₸</span></span>
+                              <span className={`text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                            </div>
+                          </button>
+
+                          {/* Тело — раскрывается */}
+                          {isOpen && (
+                            <div className="border-t border-slate-800">
+                              <div className="p-5 space-y-3">
+                                {order.items.map(item => (
+                                  <div key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-800/50 pb-3 last:border-0 last:pb-0">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-12 h-12 bg-slate-800 rounded-xl overflow-hidden border border-slate-700 flex-shrink-0">
+                                        {item.product_image ? <img src={item.product_image} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-slate-700">📸</div>}
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-sm tracking-tight">{item.product_name}</p>
+                                        <p className="text-[10px] text-slate-500">{item.quantity} шт. × {item.price} ₸</p>
+                                      </div>
+                                    </div>
+                                    <p className="font-bold text-sm font-mono">{item.total_price} ₸</p>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="px-5 pb-5 pt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div className="text-[10px] text-slate-500 uppercase space-y-1">
+                                  <p>📍 {order.address || 'Нет адреса'}</p>
+                                  <p>📞 {order.phone || 'Нет контакта'}</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  {isStaff && (
+                                    <select value={order.status} onChange={e => updateOrderStatus(order.id, e.target.value)} className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-black uppercase text-slate-300 outline-none focus:border-sky-500 transition-colors">
+                                      <option value="placed">Оформлен</option><option value="shipped">Отправлен</option><option value="delivered">Доставлен</option><option value="cancelled">Отменен</option>
+                                    </select>
+                                  )}
+                                  <Link to={`/order/${order.id}`} className="text-sky-500 hover:text-sky-400 text-xs font-bold transition-colors">Отследить →</Link>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Пагинация */}
+                    {myOrders.length > ORDERS_PER_PAGE && (
+                      <div className="flex items-center justify-center gap-2 pt-2">
+                        <button
+                          onClick={() => { setOrdersPage(p => Math.max(1, p-1)); setExpandedOrders(new Set()); }}
+                          disabled={ordersPage === 1}
+                          className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:border-sky-500/50 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold"
+                        >
+                          ← Новее
+                        </button>
+                        <span className="text-slate-500 text-xs font-mono px-3">
+                          {ordersPage} / {Math.ceil(myOrders.length / ORDERS_PER_PAGE)}
+                        </span>
+                        <button
+                          onClick={() => { setOrdersPage(p => Math.min(Math.ceil(myOrders.length / ORDERS_PER_PAGE), p+1)); setExpandedOrders(new Set()); }}
+                          disabled={ordersPage === Math.ceil(myOrders.length / ORDERS_PER_PAGE)}
+                          className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:border-sky-500/50 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold"
+                        >
+                          Старее →
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </section>

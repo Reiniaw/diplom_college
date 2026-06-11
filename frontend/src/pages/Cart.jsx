@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { getHeaders, getProductImageUrl } from '../utils/helpers';
@@ -63,36 +63,39 @@ export default function Cart() {
     } catch (err) { console.error("Ошибка загрузки корзины"); }
   };
 
-  const handleUpdateQuantity = async (itemId, newQuantity) => {
+  const quantityTimers = useRef({});
+
+  const handleUpdateQuantity = useCallback((itemId, newQuantity) => {
     if (newQuantity < 1) return;
-    
-    // Проверяем на фронте - если товара нет в наличии
-    const item = cart.items.find(i => i.id === itemId);
+    const item = cart?.items.find(i => i.id === itemId);
     if (item && newQuantity > item.product.stock) {
-      toast.addToast(
-        `На складе осталось только ${item.product.stock} шт. "${item.product_name}"`,
-        "error"
-      );
+      toast.addToast(`На складе только ${item.product.stock} шт.`, "error");
       return;
     }
-    
-    setLoading(true);
-    try {
-      await axios.patch(`${API_BASE}order-items/${itemId}/`, { quantity: newQuantity }, { headers: getHeaders() });
-      fetchCart();
-      toast.addToast("Количество обновлено ✓");
-    } catch (err) {
-      const errorMsg = err.response?.data?.detail || err.response?.data?.quantity?.[0];
-      if (errorMsg?.includes('stock')) {
-        toast.addToast("Товар закончился на складе", "error");
-      } else if (errorMsg) {
-        toast.addToast(errorMsg, "error");
-      } else {
-        toast.addToast("Ошибка при обновлении количества", "error");
+    // Оптимистично обновляем UI сразу
+    setCart(prev => {
+      if (!prev) return prev;
+      const updatedItems = prev.items.map(i =>
+        i.id === itemId
+          ? { ...i, quantity: newQuantity, total_price: (parseFloat(i.price) * newQuantity).toFixed(2) }
+          : i
+      );
+      const newTotal = updatedItems.reduce((sum, i) => sum + parseFloat(i.total_price), 0).toFixed(2);
+      return { ...prev, items: updatedItems, total_price: newTotal };
+    });
+    // Debounce: отправляем запрос через 600мс после последнего нажатия
+    if (quantityTimers.current[itemId]) clearTimeout(quantityTimers.current[itemId]);
+    quantityTimers.current[itemId] = setTimeout(async () => {
+      try {
+        await axios.patch(`${API_BASE}order-items/${itemId}/`, { quantity: newQuantity }, { headers: getHeaders() });
+        fetchCart(); // синхронизируем с сервером
+      } catch (err) {
+        const errorMsg = err.response?.data?.detail || err.response?.data?.quantity?.[0];
+        toast.addToast(errorMsg?.includes('stock') ? "Товар закончился на складе" : (errorMsg || "Ошибка"), "error");
+        fetchCart(); // откатываем если ошибка
       }
-    }
-    finally { setLoading(false); }
-  };
+    }, 600);
+  }, [cart]);
 
   const handleRemoveItem = async (itemId) => {
     setLoading(true);
@@ -245,7 +248,12 @@ export default function Cart() {
         {/* ─── ШАГ 1: КОРЗИНА + ДОСТАВКА ─── */}
         {step === 'cart' && (
           <>
-            <h1 className="text-2xl sm:text-4xl font-black uppercase italic mb-6 sm:mb-8">Оформление</h1>
+            <h1 className="text-2xl sm:text-4xl font-black uppercase italic mb-6 sm:mb-8">
+              Оформление
+              <span className="ml-3 text-base sm:text-xl font-mono text-slate-500 not-italic normal-case">
+                {cart.items.length} {cart.items.length === 1 ? 'товар' : cart.items.length < 5 ? 'товара' : 'товаров'}
+              </span>
+            </h1>
 
             {/* Список товаров */}
             <div className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">

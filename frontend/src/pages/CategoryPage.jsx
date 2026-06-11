@@ -22,6 +22,7 @@ export default function CategoryPage() {
   const [expandedFilter, setExpandedFilter] = useState(null); // Какой фильтр развернут
   const [techSearches, setTechSearches] = useState({}); // fieldId -> search text in filter
   const [showFilters, setShowFilters] = useState(false); // Показывать ли фильтры на мобилке
+  const [sortBy, setSortBy] = useState('default'); // 'default' | 'price_asc' | 'price_desc' | 'name_asc'
 
   const token = localStorage.getItem('access');
   const toast = useToast();
@@ -82,7 +83,16 @@ export default function CategoryPage() {
     if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
     return true;
+  }).sort((a, b) => {
+    if (sortBy === 'price_asc') return parseFloat(a.price) - parseFloat(b.price);
+    if (sortBy === 'price_desc') return parseFloat(b.price) - parseFloat(a.price);
+    if (sortBy === 'name_asc') return a.name.localeCompare(b.name, 'ru');
+    return 0;
   });
+
+  const activeFilterCount = Object.values(techFilters).filter(v => v && v.length > 0).length
+    + (priceMin || priceMax ? 1 : 0)
+    + (searchQuery ? 1 : 0);
 
   // Добавление в корзину
   const addToCart = async (productId) => {
@@ -169,9 +179,12 @@ export default function CategoryPage() {
               onClick={() => setShowFilters(!showFilters)}
               className="flex-1 flex items-center justify-center gap-2 bg-slate-900 border border-slate-800 p-3 rounded-lg font-bold hover:border-sky-500 transition-colors"
             >
-              🔍 {showFilters ? 'Скрыть' : 'Показать'} фильтры
+              🔍 {showFilters ? 'Скрыть' : 'Фильтры'}
+              {activeFilterCount > 0 && (
+                <span className="bg-sky-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>
+              )}
             </button>
-            {(priceMin || priceMax || searchQuery || Object.values(techFilters).some(v => v?.length > 0)) && (
+            {activeFilterCount > 0 && (
               <button 
                 onClick={clearFilters}
                 className="bg-slate-900 border border-slate-800 p-3 rounded-lg font-bold hover:border-red-500 hover:text-red-400 transition-colors"
@@ -312,6 +325,27 @@ export default function CategoryPage() {
 
             {/* ПРАВАЯ ЧАСТЬ: ТОВАРЫ */}
             <div>
+              {/* Сортировка */}
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <span className="text-slate-500 text-xs font-mono">{filteredProducts.length} товаров</span>
+                <div className="flex gap-1.5 flex-wrap justify-end">
+                  {[
+                    { value: 'default', label: 'По умолчанию' },
+                    { value: 'price_asc', label: 'Дешевле' },
+                    { value: 'price_desc', label: 'Дороже' },
+                    { value: 'name_asc', label: 'А–Я' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setSortBy(opt.value)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${sortBy === opt.value ? 'bg-sky-500 text-slate-950' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-sky-500/50 hover:text-white'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Сетка товаров */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {filteredProducts.map(product => {

@@ -1,6 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers as nested_routers
+from django.conf import settings
+from django.conf.urls.static import static
 from .views import (
     CategoryViewSet, ProductViewSet,
     DirectorUserViewSet, RegisterAPIView,
@@ -31,4 +33,4 @@ urlpatterns = [
     path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
     path('', include(router.urls)),
     path('', include(products_router.urls)),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

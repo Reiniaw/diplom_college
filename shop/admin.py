@@ -1,30 +1,34 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth import get_user_model
-from .models import Category, Product, Order, OrderItem
+from .models import Category, Product, Order, OrderItem, ProductImage, ProductTechValue, TechField
 
-# Получаем твою кастомную модель пользователя
 User = get_user_model()
+
+# Инлайн для картинок товара
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 3  # 3 пустых слота для загрузки картинок
+    fields = ('image',)
+
+# Инлайн для тех. характеристик
+class ProductTechValueInline(admin.TabularInline):
+    model = ProductTechValue
+    extra = 1
+    fields = ('tech_field', 'value')
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    # Настраиваем отображение полей в самой форме редактирования
-    # Мы добавляем 'role' в раздел "Personal info" или создаем новый
     fieldsets = UserAdmin.fieldsets + (
         ('Дополнительная информация', {'fields': ('role',)}),
     )
-    
-    # Чтобы при создании пользователя через админку тоже можно было выбрать роль
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Дополнительная информация', {'fields': ('role',)}),
     )
-
-    # Что мы видим в общем списке пользователей
     list_display = ('id', 'username', 'email', 'role', 'is_staff')
     list_filter = ('role', 'is_staff', 'is_superuser')
     search_fields = ('username', 'email')
 
-# Твои остальные регистрации остаются без изменений:
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ('id', 'name')
@@ -32,9 +36,11 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'category', 'price', 'created_at')
+    list_display = ('id', 'name', 'category', 'price', 'stock', 'created_at')
+    list_editable = ('price', 'stock')  # редактировать прямо в списке
     list_filter = ('category',)
     search_fields = ('name',)
+    inlines = [ProductImageInline, ProductTechValueInline]  # картинки и хар-ки внутри товара
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
@@ -46,3 +52,8 @@ class OrderAdmin(admin.ModelAdmin):
 class OrderItemAdmin(admin.ModelAdmin):
     list_display = ('id', 'order', 'product', 'quantity', 'price', 'total_price')
     search_fields = ('product__name', 'order__id')
+
+@admin.register(TechField)
+class TechFieldAdmin(admin.ModelAdmin):
+    list_display = ('id', 'key', 'label')
+    search_fields = ('key', 'label')

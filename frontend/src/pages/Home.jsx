@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { getHeaders, getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
@@ -15,6 +15,31 @@ export default function Home() {
   const [favorites, setFavorites] = useState(new Set()); // Set из product_id
 
   const token = localStorage.getItem('access');
+  const categoryScrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  useEffect(() => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll);
+    window.addEventListener('resize', checkScroll);
+    return () => { el.removeEventListener('scroll', checkScroll); window.removeEventListener('resize', checkScroll); };
+  }, [categories]);
+
+  const scrollCategories = (dir) => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * 240, behavior: 'smooth' });
+  };
   const toast = useToast();
 
   useEffect(() => {
@@ -170,23 +195,52 @@ export default function Home() {
                 <button onClick={() => setSearchQuery('')} className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-lg">✕</button>
               )}
             </div>
-            <nav className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            <div className="relative group/cats">
+              {/* Левая стрелка */}
               <button
-                onClick={() => setSelectedCategory(null)}
-                className={`px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-2xl font-bold transition-all whitespace-nowrap text-sm md:text-base ${!selectedCategory ? 'bg-white text-black shadow-lg' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-slate-700'}`}
+                onClick={() => scrollCategories(-1)}
+                className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-white shadow-lg shadow-slate-950/50 transition-all duration-200 hover:bg-sky-500 hover:border-sky-500 hover:scale-110 -translate-x-1/2 ${canScrollLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Прокрутить влево"
               >
-                Все товары
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
-              {categories.map(cat => (
-                <Link
-                  key={cat.id}
-                  to={`/category/${cat.id}`}
-                  className={`px-4 md:px-6 py-2 md:py-3 rounded-lg md:rounded-2xl font-bold transition-all whitespace-nowrap text-sm md:text-base ${selectedCategory === cat.id ? 'bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/30' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-slate-700'}`}
+
+              {/* Градиентные маски по бокам */}
+              <div className={`absolute left-0 top-0 h-full w-12 bg-gradient-to-r from-slate-950 to-transparent z-[5] pointer-events-none transition-opacity duration-200 ${canScrollLeft ? 'opacity-100' : 'opacity-0'}`} />
+              <div className={`absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-slate-950 to-transparent z-[5] pointer-events-none transition-opacity duration-200 ${canScrollRight ? 'opacity-100' : 'opacity-0'}`} />
+
+              {/* Сам скролл */}
+              <nav
+                ref={categoryScrollRef}
+                className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold transition-all duration-200 whitespace-nowrap text-sm md:text-base flex-shrink-0 ${!selectedCategory ? 'bg-white text-black shadow-lg scale-105' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-slate-600 hover:text-white'}`}
                 >
-                  {cat.name}
-                </Link>
-              ))}
-            </nav>
+                  Все товары
+                </button>
+                {categories.map(cat => (
+                  <Link
+                    key={cat.id}
+                    to={`/category/${cat.id}`}
+                    className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold transition-all duration-200 whitespace-nowrap text-sm md:text-base flex-shrink-0 ${selectedCategory === cat.id ? 'bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/30 scale-105' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-sky-500/50 hover:text-sky-300 hover:bg-slate-800'}`}
+                  >
+                    {cat.name}
+                  </Link>
+                ))}
+              </nav>
+
+              {/* Правая стрелка */}
+              <button
+                onClick={() => scrollCategories(1)}
+                className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-slate-900 border border-slate-700 text-white shadow-lg shadow-slate-950/50 transition-all duration-200 hover:bg-sky-500 hover:border-sky-500 hover:scale-110 translate-x-1/2 ${canScrollRight ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                aria-label="Прокрутить вправо"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
           </div>
 
           {/* СЕТКА ТОВАРОВ */}
