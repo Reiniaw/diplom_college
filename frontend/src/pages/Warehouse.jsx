@@ -13,6 +13,10 @@ export default function Warehouse() {
   const [newCatTechFields, setNewCatTechFields] = useState([]);
   const [selectedFilter, setSelectedFilter] = useState(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [warehouseSearch, setWarehouseSearch] = useState('');
+  const [warehouseSort, setWarehouseSort] = useState('default'); // 'default' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc'
+  const [inlineEdit, setInlineEdit] = useState(null); // { productId, price, stock }
+  const [inlineSaving, setInlineSaving] = useState(false);
   
   const [newTechField, setNewTechField] = useState({ key: '', label: '' });
   const [isAddingTechField, setIsAddingTechField] = useState(false);
@@ -222,6 +226,24 @@ export default function Warehouse() {
     }
   };
 
+  const handleInlineSave = async () => {
+    if (!inlineEdit) return;
+    setInlineSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('price', inlineEdit.price);
+      formData.append('stock', inlineEdit.stock);
+      await axios.patch(`${API_BASE}products/${inlineEdit.productId}/`, formData, { headers: (() => { const h = getHeaders(); delete h['Content-Type']; return h; })() });
+      toast.addToast("Сохранено ✓");
+      setInlineEdit(null);
+      fetchInitialData();
+    } catch (err) {
+      toast.addToast("Ошибка сохранения", "error");
+    } finally {
+      setInlineSaving(false);
+    }
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingProduct(null);
@@ -293,6 +315,7 @@ export default function Warehouse() {
                 className={`border border-slate-700 pl-4 pr-2 py-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all ${selectedFilter === cat.id ? 'bg-sky-500 text-black border-sky-500' : 'bg-slate-800 hover:bg-slate-700'}`}
               >
                 <span className="text-sm font-bold">{cat.name}</span>
+                <span className="text-[10px] font-mono opacity-60">{products.filter(p => p.category === cat.id).length}</span>
                 {isFullAdmin && (
                   <button onClick={(e) => deleteCategory(e, cat.id)} className="text-slate-500 hover:text-rose-500 px-2">✕</button>
                 )}
@@ -310,50 +333,196 @@ export default function Warehouse() {
           )}
         </section>
 
+        {/* ПОИСК И СОРТИРОВКА */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6 sm:mb-8">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder="Поиск по названию товара..."
+              value={warehouseSearch}
+              onChange={e => setWarehouseSearch(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 p-3 pl-10 rounded-xl outline-none focus:border-sky-500 transition-colors text-sm text-white placeholder:text-slate-600"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600">🔍</span>
+            {warehouseSearch && (
+              <button onClick={() => setWarehouseSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white text-xs">✕</button>
+            )}
+          </div>
+          <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+            {[
+              { value: 'default', label: 'По умолч.' },
+              { value: 'price_asc', label: '↑ Цена' },
+              { value: 'price_desc', label: '↓ Цена' },
+              { value: 'stock_asc', label: '↑ Остаток' },
+              { value: 'stock_desc', label: '↓ Остаток' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setWarehouseSort(opt.value)}
+                className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${warehouseSort === opt.value ? 'bg-sky-500 text-slate-950' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-sky-500/50 hover:text-white'}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* СПИСОК ТОВАРОВ */}
         <div className="space-y-8 sm:space-y-12">
-          {categories.filter(c => !selectedFilter || c.id === selectedFilter).map(cat => (
-            <div key={cat.id} className="space-y-4">
-              <h2 className="text-xl sm:text-2xl font-bold border-l-4 border-sky-500 pl-4 uppercase tracking-tight">{cat.name}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {products.filter(p => p.category === cat.id).map(product => (
-                  <div key={product.id} className="bg-slate-900 border border-slate-800 p-4 rounded-3xl flex items-center gap-4 sm:gap-6 group">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-800 rounded-2xl overflow-hidden flex-shrink-0 relative">
-                      {product.images && product.images.length > 0 ? (
-                        <>
-                          <img 
-                            src={product.images[0].image.startsWith('http') ? product.images[0].image : `http://127.0.0.1:8000${product.images[0].image}`} 
-                            className="w-full h-full object-cover" 
-                            alt={product.name} 
-                          />
-                          {product.images.length > 1 && (
-                            <div className="absolute top-1 right-1 bg-sky-500 text-white text-xs px-1.5 py-0.5 rounded font-bold">
-                              +{product.images.length - 1}
-                            </div>
+          {categories.filter(c => !selectedFilter || c.id === selectedFilter).map(cat => {
+            const catProducts = products
+              .filter(p => p.category === cat.id)
+              .filter(p => !warehouseSearch || p.name.toLowerCase().includes(warehouseSearch.toLowerCase()))
+              .sort((a, b) => {
+                if (warehouseSort === 'price_asc') return parseFloat(a.price) - parseFloat(b.price);
+                if (warehouseSort === 'price_desc') return parseFloat(b.price) - parseFloat(a.price);
+                if (warehouseSort === 'stock_asc') return a.stock - b.stock;
+                if (warehouseSort === 'stock_desc') return b.stock - a.stock;
+                return 0;
+              });
+
+            if (catProducts.length === 0 && warehouseSearch) return null;
+
+            const lowStockCount = catProducts.filter(p => p.stock > 0 && p.stock <= 3).length;
+            const outOfStockCount = catProducts.filter(p => p.stock === 0).length;
+
+            return (
+              <div key={cat.id} className="space-y-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="text-xl sm:text-2xl font-bold border-l-4 border-sky-500 pl-4 uppercase tracking-tight">{cat.name}</h2>
+                  <span className="text-slate-500 text-xs font-mono">{catProducts.length} тов.</span>
+                  {lowStockCount > 0 && (
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      ⚠ Мало: {lowStockCount}
+                    </span>
+                  )}
+                  {outOfStockCount > 0 && (
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                      ✕ Нет: {outOfStockCount}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {catProducts.map(product => {
+                    const isInlineEditing = inlineEdit?.productId === product.id;
+                    const isLowStock = product.stock > 0 && product.stock <= 3;
+                    const isOutOfStock = product.stock === 0;
+
+                    return (
+                      <div key={product.id} className={`bg-slate-900 border p-4 rounded-3xl flex items-center gap-4 sm:gap-6 group transition-all ${isOutOfStock ? 'border-rose-500/30' : isLowStock ? 'border-amber-500/30' : 'border-slate-800'}`}>
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-800 rounded-2xl overflow-hidden flex-shrink-0 relative">
+                          {product.images && product.images.length > 0 ? (
+                            <>
+                              <img 
+                                src={product.images[0].image.startsWith('http') ? product.images[0].image : `http://127.0.0.1:8000${product.images[0].image}`} 
+                                className="w-full h-full object-cover" 
+                                alt={product.name} 
+                              />
+                              {product.images.length > 1 && (
+                                <div className="absolute top-1 right-1 bg-sky-500 text-white text-xs px-1.5 py-0.5 rounded font-bold">
+                                  +{product.images.length - 1}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs text-center p-1">Нет фото</div>
                           )}
-                        </>
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs text-center p-1">Нет фото</div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base sm:text-lg font-bold truncate">{product.name}</h3>
-                      <p className="text-sky-400 font-mono text-lg sm:text-xl">{product.price} ₸</p>
-                      <p className={`text-sm font-bold ${product.is_in_stock ? 'text-green-400' : 'text-red-400'}`}>
-                        Кол-во: {product.stock}
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                      <button onClick={() => startEdit(product)} className="p-3 bg-slate-800 rounded-xl hover:bg-sky-500 hover:text-black transition-all text-sm">✎</button>
-                      {isFullAdmin && (
-                        <button onClick={() => deleteProduct(product.id)} className="p-3 bg-slate-800 rounded-xl hover:bg-rose-500 transition-all text-sm">✕</button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base sm:text-lg font-bold truncate">{product.name}</h3>
+
+                          {isInlineEditing ? (
+                            /* Инлайн-редактирование */
+                            <div className="flex flex-col gap-2 mt-2">
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <label className="text-[9px] text-slate-500 uppercase font-bold ml-1">Цена ₸</label>
+                                  <input
+                                    type="number"
+                                    value={inlineEdit.price}
+                                    onChange={e => setInlineEdit(prev => ({ ...prev, price: e.target.value }))}
+                                    className="w-full bg-slate-800 border border-sky-500/50 p-1.5 rounded-lg outline-none focus:border-sky-500 text-sm font-mono text-sky-400"
+                                    autoFocus
+                                  />
+                                </div>
+                                <div className="flex-1">
+                                  <label className="text-[9px] text-slate-500 uppercase font-bold ml-1">Кол-во</label>
+                                  <input
+                                    type="number"
+                                    value={inlineEdit.stock}
+                                    onChange={e => setInlineEdit(prev => ({ ...prev, stock: e.target.value }))}
+                                    className="w-full bg-slate-800 border border-sky-500/50 p-1.5 rounded-lg outline-none focus:border-sky-500 text-sm font-mono"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleInlineSave}
+                                  disabled={inlineSaving}
+                                  className="flex-1 bg-sky-500 text-slate-950 text-xs font-black py-1.5 rounded-lg hover:bg-sky-400 transition-all disabled:opacity-50"
+                                >
+                                  {inlineSaving ? '...' : '✓ Сохранить'}
+                                </button>
+                                <button
+                                  onClick={() => setInlineEdit(null)}
+                                  className="flex-1 bg-slate-800 text-slate-400 text-xs font-bold py-1.5 rounded-lg hover:bg-slate-700 transition-all"
+                                >
+                                  Отмена
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Обычный вид */
+                            <>
+                              <p className="text-sky-400 font-mono text-lg sm:text-xl">{Number(product.price).toLocaleString()} ₸</p>
+                              <div className="flex items-center gap-2">
+                                <p className={`text-sm font-bold ${isOutOfStock ? 'text-rose-400' : isLowStock ? 'text-amber-400' : 'text-green-400'}`}>
+                                  {isOutOfStock ? '✕ Нет в наличии' : `${product.stock} шт.`}
+                                </p>
+                                {isLowStock && <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Мало</span>}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {!isInlineEditing && (
+                          <div className="flex flex-col gap-2 flex-shrink-0">
+                            {/* Быстрое редактирование цены/остатка */}
+                            <button
+                              onClick={() => setInlineEdit({ productId: product.id, price: product.price, stock: product.stock })}
+                              title="Быстро изменить цену/остаток"
+                              className="p-2.5 bg-slate-800 rounded-xl hover:bg-sky-500/20 hover:text-sky-400 hover:border-sky-500/50 border border-transparent transition-all text-xs font-bold text-slate-400"
+                            >
+                              ₸
+                            </button>
+                            {isFullAdmin && (
+                              <button onClick={() => startEdit(product)} className="p-2.5 bg-slate-800 rounded-xl hover:bg-sky-500 hover:text-black transition-all text-sm">✎</button>
+                            )}
+                            {isFullAdmin && (
+                              <button onClick={() => deleteProduct(product.id)} className="p-2.5 bg-slate-800 rounded-xl hover:bg-rose-500 transition-all text-sm">✕</button>
+                            )}
+                            {!isFullAdmin && (
+                              <button onClick={() => startEdit(product)} className="p-2.5 bg-slate-800 rounded-xl hover:bg-sky-500 hover:text-black transition-all text-sm">✎</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
+            );
+          })}
+
+          {/* Если поиск ничего не нашёл */}
+          {warehouseSearch && products.filter(p => p.name.toLowerCase().includes(warehouseSearch.toLowerCase())).length === 0 && (
+            <div className="text-center py-16 border-2 border-dashed border-slate-800 rounded-3xl">
+              <span className="text-4xl block mb-3">🕵️‍♂️</span>
+              <p className="text-slate-500 italic">По запросу «{warehouseSearch}» ничего не найдено</p>
+              <button onClick={() => setWarehouseSearch('')} className="text-sky-500 hover:text-sky-400 text-xs font-bold mt-3 transition-colors">Сбросить поиск</button>
             </div>
-          ))}
+          )}
         </div>
 
         {/* МОДАЛЬНОЕ ОКНО ТОВАРА */}
