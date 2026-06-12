@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
-import { getHeaders, getProductImagesUrls } from '../utils/helpers';
+import api, { getProductImagesUrls } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
-import API_BASE from '../utils/config';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -35,9 +33,9 @@ export default function ProductDetail() {
 
   const fetchData = async () => {
     try {
-      const prodRes = await axios.get(`${API_BASE}products/${id}/`);
+      const prodRes = await api.get(`products/${id}/`);
       setProduct(prodRes.data);
-      const catRes = await axios.get(`${API_BASE}categories/${prodRes.data.category}/`);
+      const catRes = await api.get(`categories/${prodRes.data.category}/`);
       setCategory(catRes.data);
     } catch (err) {
       console.error("Ошибка загрузки данных", err);
@@ -48,7 +46,7 @@ export default function ProductDetail() {
 
   const fetchFavoriteStatus = async () => {
     try {
-      const res = await axios.get(`${API_BASE}favorites/`, { headers: getHeaders() });
+      const res = await api.get(`favorites/`);
       const record = res.data.find(f => f.product.id === Number(id));
       setIsFav(!!record);
       setFavId(record?.id || null);
@@ -57,7 +55,7 @@ export default function ProductDetail() {
 
   const fetchReviews = async () => {
     try {
-      const res = await axios.get(`${API_BASE}products/${id}/reviews/`);
+      const res = await api.get(`products/${id}/reviews/`);
       setReviews(res.data);
       setHasMyReview(res.data.some(r => r.is_mine));
     } catch (err) {
@@ -70,12 +68,12 @@ export default function ProductDetail() {
     setFavLoading(true);
     try {
       if (isFav && favId) {
-        await axios.delete(`${API_BASE}favorites/${favId}/`, { headers: getHeaders() });
+        await api.delete(`favorites/${favId}/`);
         setIsFav(false);
         setFavId(null);
         toast.addToast("Убрано из избранного");
       } else {
-        const res = await axios.post(`${API_BASE}favorites/`, { product_id: Number(id) }, { headers: getHeaders() });
+        const res = await api.post(`favorites/`, { product_id: Number(id) });
         setIsFav(true);
         setFavId(res.data.id);
         toast.addToast("Добавлено в избранное ♥");
@@ -92,10 +90,9 @@ export default function ProductDetail() {
     if (!token) { toast.addToast("Войдите в аккаунт!", "error"); return; }
     setSubmittingReview(true);
     try {
-      await axios.post(
-        `${API_BASE}products/${id}/reviews/`,
-        { rating: reviewForm.rating, text: reviewForm.text },
-        { headers: getHeaders() }
+      await api.post(
+        `products/${id}/reviews/`,
+        { rating: reviewForm.rating, text: reviewForm.text }
       );
       toast.addToast("Отзыв опубликован! ✅");
       setReviewForm({ rating: 5, text: '' });
@@ -109,7 +106,7 @@ export default function ProductDetail() {
 
   const deleteReview = async (reviewId) => {
     try {
-      await axios.delete(`${API_BASE}products/${id}/reviews/${reviewId}/`, { headers: getHeaders() });
+      await api.delete(`products/${id}/reviews/${reviewId}/`);
       toast.addToast("Отзыв удалён");
       fetchReviews();
     } catch (err) {
@@ -121,9 +118,9 @@ export default function ProductDetail() {
     if (!token) { toast.addToast("Войдите в аккаунт!", "error"); return; }
     if (!product.is_in_stock) { toast.addToast("Товар нет в наличии!", "error"); return; }
     try {
-      const cartRes = await axios.get(`${API_BASE}orders/current-cart/`, { headers: getHeaders() });
-      await axios.post(`${API_BASE}orders/${cartRes.data.id}/add-item/`,
-        { product_id: product.id, quantity: 1 }, { headers: getHeaders() }
+      const cartRes = await api.get(`orders/current-cart/`);
+      await api.post(`orders/${cartRes.data.id}/add-item/`,
+        { product_id: product.id, quantity: 1 }
       );
       toast.addToast("Добавлено в корзину! 📸");
     } catch (err) {

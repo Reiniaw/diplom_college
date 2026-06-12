@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getHeaders, getProductImageUrl } from '../utils/helpers';
+import api from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
-import API_BASE from '../utils/config';
 
 export default function OrdersManager() {
   const [orders, setOrders] = useState([]);
@@ -27,7 +25,7 @@ export default function OrdersManager() {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get(`${API_BASE}orders/`, { headers: getHeaders() });
+      const res = await api.get(`orders/`);
       // Убираем из списка корзины, оставляем только реальные заказы
       setOrders(res.data.filter(o => o.status !== 'cart'));
     } catch (err) {
@@ -39,8 +37,7 @@ export default function OrdersManager() {
 
   const updateStatus = async (orderId, newStatus) => {
     try {
-      await axios.patch(`${API_BASE}orders/${orderId}/change-status/`, { status: newStatus }, 
-        { headers: getHeaders() }
+      await api.patch(`orders/${orderId}/change-status/`, { status: newStatus }
       );
       toast.addToast(`Статус заказа #${orderId} изменен на ${newStatus}`);
       fetchOrders(); // Обновляем список

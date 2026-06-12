@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { getHeaders } from '../utils/helpers';
+import api from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
-import API_BASE from '../utils/config';
 
 // Инпут пароля с кнопкой показать/скрыть
 function PasswordInput({ placeholder, value, onChange, error = false }) {
@@ -83,7 +81,7 @@ export default function Profile() {
   useEffect(() => {
     if (user?.role === 'director') { fetchStats(); fetchEmployees(); }
     if (user) {
-      axios.get(`${API_BASE}orders/`, { headers: getHeaders() })
+      api.get(`orders/`)
         .then(res => setMyOrders(res.data.filter(o => o.status !== 'cart')))
         .catch(err => console.error("Ошибка загрузки истории", err));
       fetchFavorites();
@@ -91,7 +89,7 @@ export default function Profile() {
   }, [user]);
 
   const fetchProfile = () => {
-    axios.get(`${API_BASE}me/`, { headers: getHeaders() })
+    api.get(`me/`)
       .then(res => {
         setUser(res.data);
         setProfileData({
@@ -112,7 +110,7 @@ export default function Profile() {
   const fetchFavorites = async () => {
     setFavLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}favorites/`, { headers: getHeaders() });
+      const res = await api.get(`favorites/`);
       setFavorites(res.data);
     } catch (err) {
       console.error("Ошибка избранного", err);
@@ -123,7 +121,7 @@ export default function Profile() {
 
   const removeFavorite = async (favId) => {
     try {
-      await axios.delete(`${API_BASE}favorites/${favId}/`, { headers: getHeaders() });
+      await api.delete(`favorites/${favId}/`);
       setFavorites(prev => prev.filter(f => f.id !== favId));
       toast.addToast("Убрано из избранного");
     } catch (err) {
@@ -154,7 +152,7 @@ export default function Profile() {
         updateData.current_password = profileData.current_password;
         updateData.new_password = profileData.new_password;
       }
-      const res = await axios.patch(`${API_BASE}me/`, updateData, { headers: getHeaders() });
+      const res = await api.patch(`me/`, updateData);
       setUser(res.data);
       window.dispatchEvent(new Event('userUpdated'));
       toast.addToast("Профиль успешно обновлен! ✅");
@@ -176,7 +174,7 @@ export default function Profile() {
   const handleSendVerification = async () => {
     setVerifyLoading(true);
     try {
-      await axios.post(`${API_BASE}send-verification/`, {}, { headers: getHeaders() });
+      await api.post(`send-verification/`, {});
       setVerifySent(true);
       toast.addToast("Письмо отправлено! Проверьте почту.");
     } catch (err) {
@@ -188,19 +186,19 @@ export default function Profile() {
   };
 
   const fetchStats = (dFrom = dateFrom, dTo = dateTo) => {
-    let url = `${API_BASE}director/stats/`;
+    let url = `director/stats/`;
     const params = new URLSearchParams();
     if (dFrom) params.append('date_from', dFrom);
     if (dTo) params.append('date_to', dTo);
     const qs = params.toString();
     if (qs) url += `?${qs}`;
-    axios.get(url, { headers: getHeaders() })
+    api.get(url)
       .then(res => setStats(res.data))
       .catch(err => console.error("Ошибка аналитики", err));
   };
 
   const fetchEmployees = () => {
-    axios.get(`${API_BASE}users/`, { headers: getHeaders() })
+    api.get(`users/`)
       .then(res => setEmployees(res.data))
       .catch(() => {});
   };
@@ -208,7 +206,7 @@ export default function Profile() {
   const handleHire = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}register/`, newEmployee, { headers: getHeaders() });
+      await api.post(`register/`, newEmployee);
       toast.addToast(`Сотрудник ${newEmployee.username} нанят!`);
       setNewEmployee({ username: '', password: '', role: 'seller' });
       setShowHireForm(false);
@@ -219,7 +217,7 @@ export default function Profile() {
   const handleFire = async (id, username) => {
     if (window.confirm(`Уволить ${username}?`)) {
       try {
-        await axios.delete(`${API_BASE}users/${id}/`, { headers: getHeaders() });
+        await api.delete(`users/${id}/`);
         fetchEmployees();
       } catch (err) { alert("Ошибка удаления"); }
     }
@@ -227,16 +225,16 @@ export default function Profile() {
 
   const handleChangeRole = async (id, newRole) => {
     try {
-      await axios.patch(`${API_BASE}users/${id}/`, { role: newRole }, { headers: getHeaders() });
+      await api.patch(`users/${id}/`, { role: newRole });
       fetchEmployees();
     } catch (err) { alert("Ошибка роли"); }
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
-      await axios.patch(`${API_BASE}orders/${orderId}/change-status/`, { status: newStatus }, { headers: getHeaders() });
+      await api.patch(`orders/${orderId}/change-status/`, { status: newStatus });
       toast.addToast(`Статус заказа #${orderId} изменен на ${newStatus}`);
-      axios.get(`${API_BASE}orders/`, { headers: getHeaders() })
+      api.get(`orders/`)
         .then(res => setMyOrders(res.data.filter(o => o.status !== 'cart')));
     } catch (err) { toast.addToast("Ошибка при обновлении статуса", "error"); }
   };

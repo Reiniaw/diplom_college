@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
-import { getHeaders, getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
+import api, { getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
-import API_BASE from '../utils/config';
 
 export default function CategoryPage() {
   const { id } = useParams();
@@ -34,8 +32,8 @@ export default function CategoryPage() {
   const fetchData = async () => {
     try {
       const [catRes, prodRes] = await Promise.all([
-        axios.get(`${API_BASE}categories/${id}/`),
-        axios.get(`${API_BASE}products/`)
+        api.get(`categories/${id}/`),
+        api.get(`products/`)
       ]);
       setCategory(catRes.data);
       setTechFields(catRes.data.tech_fields || []);
@@ -101,10 +99,9 @@ export default function CategoryPage() {
       return;
     }
     try {
-      const cartRes = await axios.get(`${API_BASE}orders/current-cart/`, { headers: getHeaders() });
-      await axios.post(`${API_BASE}orders/${cartRes.data.id}/add-item/`,
-        { product_id: productId, quantity: 1 },
-        { headers: getHeaders() }
+      const cartRes = await api.get(`orders/current-cart/`);
+      await api.post(`orders/${cartRes.data.id}/add-item/`,
+        { product_id: productId, quantity: 1 }
       );
       toast.addToast("Товар успешно добавлен в корзину! 📸");
     } catch (err) {

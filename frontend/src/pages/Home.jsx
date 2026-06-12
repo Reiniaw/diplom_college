@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { getHeaders, getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
+import api, { getProductImageUrl, getProductImagesUrls } from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
-import API_BASE from '../utils/config';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -50,8 +48,8 @@ export default function Home() {
   const fetchData = async () => {
     try {
       const [p, c] = await Promise.all([
-        axios.get(`${API_BASE}products/`),
-        axios.get(`${API_BASE}categories/`)
+        api.get(`products/`),
+        api.get(`categories/`)
       ]);
       setProducts(p.data);
       setCategories(c.data);
@@ -67,7 +65,7 @@ export default function Home() {
 
   const fetchFavorites = async () => {
     try {
-      const res = await axios.get(`${API_BASE}favorites/`, { headers: getHeaders() });
+      const res = await api.get(`favorites/`);
       // Храним Set из product.id для быстрой проверки
       setFavorites(new Set(res.data.map(f => f.product.id)));
     } catch (err) {
@@ -86,10 +84,10 @@ export default function Home() {
     if (isFav) {
       // Нужен id записи Favorite, получим через повторный запрос
       try {
-        const res = await axios.get(`${API_BASE}favorites/`, { headers: getHeaders() });
+        const res = await api.get(`favorites/`);
         const record = res.data.find(f => f.product.id === productId);
         if (record) {
-          await axios.delete(`${API_BASE}favorites/${record.id}/`, { headers: getHeaders() });
+          await api.delete(`favorites/${record.id}/`);
           setFavorites(prev => { const next = new Set(prev); next.delete(productId); return next; });
           toast.addToast("Убрано из избранного");
         }
@@ -98,7 +96,7 @@ export default function Home() {
       }
     } else {
       try {
-        await axios.post(`${API_BASE}favorites/`, { product_id: productId }, { headers: getHeaders() });
+        await api.post(`favorites/`, { product_id: productId });
         setFavorites(prev => new Set(prev).add(productId));
         toast.addToast("Добавлено в избранное ♥");
       } catch (err) {
@@ -118,10 +116,9 @@ export default function Home() {
       return;
     }
     try {
-      const cartRes = await axios.get(`${API_BASE}orders/current-cart/`, { headers: getHeaders() });
-      await axios.post(`${API_BASE}orders/${cartRes.data.id}/add-item/`,
-        { product_id: productId, quantity: 1 },
-        { headers: getHeaders() }
+      const cartRes = await api.get(`orders/current-cart/`);
+      await api.post(`orders/${cartRes.data.id}/add-item/`,
+        { product_id: productId, quantity: 1 }
       );
       toast.addToast("Товар успешно добавлен в корзину! 📸");
     } catch (err) {

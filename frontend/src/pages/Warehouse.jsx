@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
 import API_BASE from '../utils/config';
 
@@ -37,25 +37,19 @@ export default function Warehouse() {
 
   const toast = useToast();
 
-  const getHeaders = () => {
-    const token = localStorage.getItem('access');
-    if (!token) console.warn("❌ Токена нет в localStorage!");
-    return { Authorization: `Bearer ${token}` };
-  };
-
   useEffect(() => {
     fetchInitialData();
   }, []);
 
   const fetchInitialData = async () => {
     try {
-      const userRes = await axios.get(`${API_BASE}me/`, { headers: getHeaders() });
+      const userRes = await api.get(`me/`);
       setUser(userRes.data);
 
       const [p, c, t] = await Promise.all([
-        axios.get(`${API_BASE}products/`, { headers: getHeaders() }),
-        axios.get(`${API_BASE}categories/`, { headers: getHeaders() }),
-        axios.get(`${API_BASE}tech-fields/`, { headers: getHeaders() })
+        api.get(`products/`),
+        api.get(`categories/`),
+        api.get(`tech-fields/`)
       ]);
       setProducts(p.data);
       setCategories(c.data);
@@ -68,9 +62,8 @@ export default function Warehouse() {
     e.preventDefault();
     if (!newCatName.trim()) return;
     try {
-      await axios.post(`${API_BASE}categories/`, 
-        { name: newCatName, tech_field_ids: newCatTechFields }, 
-        { headers: getHeaders() }
+      await api.post(`categories/`, 
+        { name: newCatName, tech_field_ids: newCatTechFields }
       );
       setNewCatName('');
       setNewCatTechFields([]);
@@ -85,7 +78,7 @@ export default function Warehouse() {
     if (e) e.preventDefault();
     if (!newTechField.key.trim() || !newTechField.label.trim()) return;
     try {
-      const response = await axios.post(`${API_BASE}tech-fields/`, newTechField, { headers: getHeaders() });
+      const response = await api.post(`tech-fields/`, newTechField);
       setAllTechFields([...allTechFields, response.data]);
       setNewCatTechFields([...newCatTechFields, response.data.id]);
       setNewTechField({ key: '', label: '' });
@@ -105,7 +98,7 @@ export default function Warehouse() {
     e.stopPropagation();
     if (window.confirm("Удалить категорию?")) {
       try {
-        await axios.delete(`${API_BASE}categories/${id}/`, { headers: getHeaders() });
+        await api.delete(`categories/${id}/`);
         if (selectedFilter === id) setSelectedFilter(null);
         fetchInitialData();
       } catch (err) { toast.addToast("Не удалось удалить категорию", "error"); }
@@ -163,17 +156,13 @@ export default function Warehouse() {
     e.preventDefault();
 
     try {
-      const headersConfig = { ...getHeaders() };
-      delete headersConfig['Content-Type'];
-
       if (editingProduct) {
         // ФИX: сначала удаляем фото, которые пользователь убрал
         if (imageIdsToDelete.length > 0) {
           await Promise.all(
             imageIdsToDelete.map(imageId =>
-              axios.delete(
-                `${API_BASE}products/${editingProduct.id}/images/${imageId}/`,
-                { headers: headersConfig }
+              api.delete(
+                `products/${editingProduct.id}/images/${imageId}/`
               ).catch(err => console.warn(`Не удалось удалить фото ${imageId}:`, err))
             )
           );
@@ -193,9 +182,7 @@ export default function Warehouse() {
           images.forEach(img => formData.append('images', img));
         }
 
-        await axios.patch(`${API_BASE}products/${editingProduct.id}/`, formData, {
-          headers: headersConfig
-        });
+        await api.patch(`products/${editingProduct.id}/`, formData);
 
       } else {
         // Создание нового товара
@@ -205,9 +192,7 @@ export default function Warehouse() {
         });
         images.forEach(img => formData.append('images', img));
 
-        await axios.post(`${API_BASE}products/`, formData, {
-          headers: headersConfig
-        });
+        await api.post(`products/`, formData);
       }
 
       closeModal();
@@ -221,7 +206,7 @@ export default function Warehouse() {
 
   const deleteProduct = async (id) => {
     if (window.confirm("Удалить товар?")) {
-      await axios.delete(`${API_BASE}products/${id}/`, { headers: getHeaders() });
+      await api.delete(`products/${id}/`);
       fetchInitialData();
     }
   };
@@ -233,7 +218,7 @@ export default function Warehouse() {
       const formData = new FormData();
       formData.append('price', inlineEdit.price);
       formData.append('stock', inlineEdit.stock);
-      await axios.patch(`${API_BASE}products/${inlineEdit.productId}/`, formData, { headers: (() => { const h = getHeaders(); delete h['Content-Type']; return h; })() });
+      await api.patch(`products/${inlineEdit.productId}/`, formData);
       toast.addToast("Сохранено ✓");
       setInlineEdit(null);
       fetchInitialData();

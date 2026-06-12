@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
-import { getHeaders } from '../utils/helpers';
-import API_BASE from '../utils/config';
+import api from '../utils/helpers';
 
 const STATUS_STEPS = [
   {
@@ -54,7 +52,7 @@ export default function OrderTracking() {
 
   const fetchOrder = async () => {
     try {
-      const res = await axios.get(`${API_BASE}orders/${id}/`, { headers: getHeaders() });
+      const res = await api.get(`orders/${id}/`);
       setOrder(res.data);
       setError(null);
     } catch (err) {

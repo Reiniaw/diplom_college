@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { getHeaders, getProductImageUrl } from '../utils/helpers';
+import api from '../utils/helpers';
 import { useToast } from '../components/ToastContext';
-import API_BASE from '../utils/config';
 
 // Статичный Kaspi QR (заглушка — замени на реальный QR своего магазина из Kaspi Business)
 const KASPI_QR_URL = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://kaspi.kz/pay/ProLens';
@@ -50,7 +48,7 @@ export default function Cart() {
     // Подставляем email пользователя если есть
     const token = localStorage.getItem('access');
     if (token) {
-      axios.get(`${API_BASE}me/`, { headers: getHeaders() })
+      api.get(`me/`)
         .then(res => { if (res.data.email) setReceiptEmail(res.data.email); })
         .catch(() => {});
     }
@@ -58,7 +56,7 @@ export default function Cart() {
 
   const fetchCart = async () => {
     try {
-      const res = await axios.get(`${API_BASE}orders/current-cart/`, { headers: getHeaders() });
+      const res = await api.get(`orders/current-cart/`);
       setCart(res.data);
     } catch (err) { console.error("Ошибка загрузки корзины"); }
   };
@@ -87,7 +85,7 @@ export default function Cart() {
     if (quantityTimers.current[itemId]) clearTimeout(quantityTimers.current[itemId]);
     quantityTimers.current[itemId] = setTimeout(async () => {
       try {
-        await axios.patch(`${API_BASE}order-items/${itemId}/`, { quantity: newQuantity }, { headers: getHeaders() });
+        await api.patch(`order-items/${itemId}/`, { quantity: newQuantity });
         fetchCart(); // синхронизируем с сервером
       } catch (err) {
         const errorMsg = err.response?.data?.detail || err.response?.data?.quantity?.[0];
@@ -100,7 +98,7 @@ export default function Cart() {
   const handleRemoveItem = async (itemId) => {
     setLoading(true);
     try {
-      await axios.delete(`${API_BASE}order-items/${itemId}/`, { headers: getHeaders() });
+      await api.delete(`order-items/${itemId}/`);
       fetchCart();
       setDeleteConfirm(null);
     } catch (err) { toast.addToast("Ошибка при удалении товара", "error"); }
@@ -109,7 +107,7 @@ export default function Cart() {
 
   const fetchLastOrderInfo = async () => {
     try {
-      const res = await axios.get(`${API_BASE}orders/`, { headers: getHeaders() });
+      const res = await api.get(`orders/`);
       const lastOrder = res.data.find(o => o.status !== 'cart');
       if (lastOrder) {
         setShippingInfo(prev => ({
@@ -155,14 +153,13 @@ export default function Cart() {
 
     setLoading(true);
     try {
-      const res = await axios.post(
-        `${API_BASE}orders/${cart.id}/checkout/`,
+      const res = await api.post(
+        `orders/${cart.id}/checkout/`,
         {
           ...shippingInfo,
           receipt_email: receiptEmail,
           payment_method: paymentMethod,
-        },
-        { headers: getHeaders() }
+        }
       );
       setPlacedOrderId(res.data.id);
       setStep('success');
