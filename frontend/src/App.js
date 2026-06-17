@@ -11,6 +11,8 @@ import OrdersManager from './pages/OrdersManager';
 import NotFound from './pages/NotFound';
 import OrderTracking from './pages/OrderTracking';
 import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword  from './pages/ResetPassword';
 
 function App() {
   return (
@@ -27,6 +29,8 @@ function App() {
         <Route path="/order/:id" element={<OrderTracking />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="*" element={<NotFound />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password"  element={<ResetPassword />} />
       </Routes>
     </Layout>
   );

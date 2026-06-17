@@ -1,12 +1,35 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../components/ToastContext';
 import API_BASE from '../utils/config';
 
+// Достаёт человекочитаемые сообщения из ответа DRF.
+// Валидационные ошибки приходят как { field: ["текст", ...], ... } —
+// возвращаем массив, чтобы Toast показал каждое отдельной строкой.
+function getErrorMessages(err) {
+  const data = err.response?.data;
+  if (!data) {
+    return ['Не удалось связаться с сервером. Проверьте подключение.'];
+  }
+  if (typeof data === 'string') {
+    return [data];
+  }
+  if (typeof data.detail === 'string') {
+    if (data.detail.includes('No active account')) {
+      return ['Неверный логин или пароль'];
+    }
+    return [data.detail];
+  }
+  const messages = Object.values(data)
+    .flat()
+    .filter((m) => typeof m === 'string');
+  return messages.length ? messages : ['Ошибка: проверьте данные'];
+}
+
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({ username: '', password: '', confirmPassword: '' });
+  const [formData, setFormData] = useState({ username: '', email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const navigate = useNavigate();
@@ -15,7 +38,6 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Проверка совпадения паролей при регистрации
     if (!isLogin && formData.password !== formData.confirmPassword) {
       toast.addToast("Пароли не совпадают", "error");
       return;
@@ -24,7 +46,12 @@ const Login = () => {
     const endpoint = isLogin ? 'token/' : 'register/';
     try {
       const { confirmPassword, ...sendData } = formData;
-      const res = await axios.post(`${API_BASE}${endpoint}`, isLogin ? sendData : sendData);
+      // При логине email не нужен
+      const payload = isLogin
+        ? { username: sendData.username, password: sendData.password }
+        : sendData;
+
+      const res = await axios.post(`${API_BASE}${endpoint}`, payload);
       if (isLogin) {
         localStorage.setItem('access', res.data.access);
         localStorage.setItem('refresh', res.data.refresh);
@@ -33,29 +60,28 @@ const Login = () => {
       } else {
         toast.addToast("Регистрация прошла успешно! Теперь войдите.");
         setIsLogin(true);
-        setFormData({ username: '', password: '', confirmPassword: '' });
+        setFormData({ username: '', email: '', password: '', confirmPassword: '' });
       }
     } catch (err) {
-      toast.addToast("Ошибка: проверьте данные", "error");
+      toast.addToast(getErrorMessages(err), "error");
     }
   };
 
   const handleSwitch = () => {
     setIsLogin(!isLogin);
-    setFormData({ username: '', password: '', confirmPassword: '' });
+    setFormData({ username: '', email: '', password: '', confirmPassword: '' });
     setShowPassword(false);
     setShowConfirm(false);
   };
 
-  // Совпадают ли пароли (показываем только если оба заполнены)
   const passwordsMatch = formData.confirmPassword === '' || formData.password === formData.confirmPassword;
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-slate-950 flex items-center justify-center p-4 sm:p-6">
       <div className="absolute w-64 h-64 bg-sky-500/10 blur-[120px] rounded-full top-1/4 left-1/4"></div>
-      
+
       <div className="w-full max-w-md bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl relative">
-        
+
         {/* Заголовок */}
         <div className="text-center mb-8 sm:mb-10">
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
@@ -72,8 +98,8 @@ const Login = () => {
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Логин
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               required
               autoComplete="username"
               className="w-full bg-slate-800/50 border border-slate-700 text-white p-3 sm:p-3.5 rounded-2xl outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all placeholder:text-slate-600 text-sm sm:text-base"
@@ -83,13 +109,34 @@ const Login = () => {
             />
           </div>
 
+          {/* Email — только при регистрации */}
+          {!isLogin && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                className="w-full bg-slate-800/50 border border-slate-700 text-white p-3 sm:p-3.5 rounded-2xl outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all placeholder:text-slate-600 text-sm sm:text-base"
+                placeholder="you@example.com"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+              />
+              <p className="text-slate-600 text-[10px] mt-1.5 ml-1">
+                Нужен для сброса пароля — подтвердите после регистрации
+              </p>
+            </div>
+          )}
+
           {/* Пароль */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Пароль
             </label>
             <div className="relative">
-              <input 
+              <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 autoComplete={isLogin ? 'current-password' : 'new-password'}
@@ -106,6 +153,17 @@ const Login = () => {
                 {showPassword ? 'Скрыть' : 'Показать'}
               </button>
             </div>
+            {/* Ссылка «Забыл пароль» — только при входе */}
+            {isLogin && (
+              <div className="text-right mt-1.5">
+                <Link
+                  to="/forgot-password"
+                  className="text-[10px] text-slate-500 hover:text-sky-400 transition-colors font-semibold uppercase tracking-wider"
+                >
+                  Забыли пароль?
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Подтверждение пароля — только при регистрации */}
@@ -115,7 +173,7 @@ const Login = () => {
                 Подтвердите пароль
               </label>
               <div className="relative">
-                <input 
+                <input
                   type={showConfirm ? 'text' : 'password'}
                   required
                   autoComplete="new-password"
@@ -136,7 +194,6 @@ const Login = () => {
                   {showConfirm ? 'Скрыть' : 'Показать'}
                 </button>
               </div>
-              {/* Подсказка о совпадении */}
               {formData.confirmPassword !== '' && (
                 <p className={`text-xs mt-1.5 ml-1 font-semibold ${passwordsMatch ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {passwordsMatch ? '✓ Пароли совпадают' : '✕ Пароли не совпадают'}
@@ -156,7 +213,7 @@ const Login = () => {
 
         {/* Переключатель */}
         <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-800 text-center">
-          <button 
+          <button
             onClick={handleSwitch}
             className="text-slate-400 text-xs sm:text-sm hover:text-sky-400 transition-colors"
           >

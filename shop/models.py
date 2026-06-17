@@ -3,6 +3,9 @@ from decimal import Decimal
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+import uuid
+from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 
 class TechField(models.Model):
@@ -162,6 +165,8 @@ class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Номер телефона")
     address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Адрес доставки")
 
+    email = models.EmailField(verbose_name="Email", unique=True)
+
     email_verified = models.BooleanField(default=False, verbose_name="Email подтверждён")
     email_verify_token = models.CharField(max_length=64, blank=True, null=True)
 
@@ -218,3 +223,19 @@ class Review(models.Model):
 
     def __str__(self):
         return f'{self.user.username} — {self.product.name} ({self.rating}★)'
+    
+
+
+User = get_user_model()
+ 
+class PasswordResetToken(models.Model):
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token      = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+ 
+    def is_valid(self):
+        """Токен действует 15 минут."""
+        return timezone.now() < self.created_at + timezone.timedelta(minutes=15)
+ 
+    def __str__(self):
+        return f"{self.user.username} — {self.token}"

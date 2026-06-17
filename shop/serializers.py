@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue, Favorite, Review
 from django.contrib.auth import get_user_model
+from rest_framework import serializers
+from django.contrib.auth.password_validation import validate_password
+from rest_framework.validators import UniqueValidator
 
 User = get_user_model()
 
@@ -99,14 +102,34 @@ class AddItemSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(min_value=1)
 
 class RegisterSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(
+        validators=[UniqueValidator(
+            queryset=User.objects.all(),
+            lookup='iexact',
+            message="Аккаунт с таким логином уже существует"
+        )]
+    )
+    email = serializers.EmailField(
+        validators=[UniqueValidator(
+            queryset=User.objects.all(),
+            lookup='iexact',
+            message="Аккаунт с таким email уже зарегистрирован"
+        )]
+    )
+
     class Meta:
         model = User
-        fields = ('username', 'password', 'role')
+        fields = ('username', 'email', 'password', 'role')
         extra_kwargs = {'password': {'write_only': True}}
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
 
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data['username'],
+            email=validated_data['email'],
             password=validated_data['password'],
             role=validated_data.get('role', 'user')
         )
@@ -120,16 +143,29 @@ class UserSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     current_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     new_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    username = serializers.CharField(
+        validators=[UniqueValidator(
+            queryset=User.objects.all(),
+            lookup='iexact',
+            message="Этот логин уже занят"
+        )]
+    )
+    email = serializers.EmailField(
+        validators=[UniqueValidator(
+            queryset=User.objects.all(),
+            lookup='iexact',
+            message="Этот email уже используется другим аккаунтом"
+        )]
+    )
 
     class Meta:
         model = User
         fields = ['username', 'email', 'first_name', 'last_name',  # добавили username
                   'phone', 'address', 'current_password', 'new_password']
 
-    def validate_username(self, value):
-        user = self.instance
-        if User.objects.filter(username=value).exclude(pk=user.pk).exists():
-            raise serializers.ValidationError("Этот логин уже занят")
+    def validate_new_password(self, value):
+        if value:
+            validate_password(value)
         return value
 
     def validate(self, data):
@@ -196,3 +232,16 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name',
                   'role', 'phone', 'address', 'email_verified']  # добавили email_verified
+ 
+ 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+ 
+ 
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    token        = serializers.UUIDField()
+    new_password = serializers.CharField(write_only=True)
+ 
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value

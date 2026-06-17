@@ -252,26 +252,27 @@ export default function Profile() {
       <div className="max-w-6xl mx-auto">
 
         {/* ── БАННЕР ПОДТВЕРЖДЕНИЯ EMAIL ── */}
-        {user.email && !user.email_verified && (
-          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-4">
-            <div className="flex items-center gap-3">
-              <span className="text-amber-400 text-xl flex-shrink-0">⚠</span>
-              <div>
-                <p className="text-amber-300 font-bold text-sm">Email не подтверждён</p>
-                <p className="text-amber-400/70 text-xs mt-0.5">
-                  Подтвердите <span className="text-amber-300 font-mono">{user.email}</span>, чтобы получать уведомления о заказах
-                </p>
+          {user.email && !user.email_verified && (
+            <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-4">
+              <div className="flex items-center gap-3">
+                <span className="text-amber-400 text-xl flex-shrink-0">⚠</span>
+                <div>
+                  <p className="text-amber-300 font-bold text-sm">Email не подтверждён</p>
+                  <p className="text-amber-400/70 text-xs mt-0.5">
+                    Подтвердите <span className="text-amber-300 font-mono">{user.email}</span> — без этого{' '}
+                    <span className="text-amber-300 font-semibold">сброс пароля недоступен</span>
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={handleSendVerification}
+                disabled={verifyLoading || verifySent}
+                className="flex-shrink-0 px-5 py-2 bg-amber-400 hover:bg-amber-300 disabled:bg-amber-400/40 text-slate-950 font-black text-xs uppercase rounded-xl transition-all active:scale-95"
+              >
+                {verifyLoading ? 'Отправка...' : verifySent ? '✓ Письмо отправлено' : 'Отправить письмо'}
+              </button>
             </div>
-            <button
-              onClick={handleSendVerification}
-              disabled={verifyLoading || verifySent}
-              className="flex-shrink-0 px-5 py-2 bg-amber-400 hover:bg-amber-300 disabled:bg-amber-400/40 text-slate-950 font-black text-xs uppercase rounded-xl transition-all active:scale-95"
-            >
-              {verifyLoading ? 'Отправка...' : verifySent ? '✓ Письмо отправлено' : 'Отправить письмо'}
-            </button>
-          </div>
-        )}
+          )}
 
         {/* Баннер: email вообще не указан */}
         {!user.email && (
@@ -459,11 +460,16 @@ export default function Profile() {
                     {[
                       { label: 'Логин', value: user.username },
                       { label: 'Email', value: user.email ? (
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-2 flex-wrap">
                           {user.email}
                           {user.email_verified
                             ? <span className="text-emerald-400 text-xs font-bold px-2 py-0.5 bg-emerald-400/10 border border-emerald-400/20 rounded-full">✓ подтверждён</span>
-                            : <span className="text-amber-400 text-xs font-bold px-2 py-0.5 bg-amber-400/10 border border-amber-400/20 rounded-full">не подтверждён</span>
+                            : (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="text-amber-400 text-xs font-bold px-2 py-0.5 bg-amber-400/10 border border-amber-400/20 rounded-full">не подтверждён</span>
+                                <span className="text-slate-600 text-[10px]">— сброс пароля недоступен</span>
+                              </span>
+                            )
                           }
                         </span>
                       ) : '—' },

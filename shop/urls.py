@@ -10,6 +10,7 @@ from .views import (
     DirectorStatsView, TechFieldViewSet,
     OrderItemViewSet, FavoriteViewSet, ReviewViewSet,
     SendEmailVerificationView, VerifyEmailView,
+    PasswordResetRequestView, PasswordResetConfirmView
 )
 
 router = DefaultRouter()
@@ -33,4 +34,6 @@ urlpatterns = [
     path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
     path('', include(router.urls)),
     path('', include(products_router.urls)),
+    path('password-reset/', PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm')
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -13,13 +13,15 @@ from django.template.loader import render_to_string
 from django.conf import settings as django_settings
 import secrets
 from django.urls import reverse
+from rest_framework.permissions import AllowAny
 
-from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue, Favorite, Review
+from .models import Category, Product, Order, OrderItem, TechField, ProductImage, ProductTechValue, Favorite, Review, PasswordResetToken
 from .serializers import (
     CategorySerializer, ProductSerializer,
     OrderSerializer, AddItemSerializer,
     UserSerializer, RegisterSerializer, TechFieldSerializer,
-    OrderItemSerializer, OrderItemUpdateSerializer, UserUpdateSerializer, FavoriteSerializer, ReviewSerializer
+    OrderItemSerializer, OrderItemUpdateSerializer, UserUpdateSerializer, FavoriteSerializer, ReviewSerializer,
+    PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 )
 
 User = get_user_model()
@@ -697,3 +699,88 @@ class VerifyEmailView(APIView):
             return Response({'detail': 'Email успешно подтверждён!'})
         except User.DoesNotExist:
             return Response({'detail': 'Email уже подтверждён!'})
+        
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [AllowAny]
+ 
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+ 
+        generic_response = Response({"detail": "Если email зарегистрирован и подтверждён, письмо отправлено."})
+ 
+        # .filter().first() вместо .get() — переживает дубли email в базе
+        # (см. примечание ниже: дубли нужно почистить и закрыть unique-констрейнтом)
+        user = User.objects.filter(email=email).order_by('id').first()
+ 
+        if user is None:
+            return generic_response
+ 
+        # ✅ ПРОВЕРКА ВЕРИФИКАЦИИ — только подтверждённые могут сбросить
+        if not user.email_verified:
+            # Возвращаем 200 (не раскрываем причину отказа публично)
+            # Но если хотите показать ошибку явно — раскомментируйте:
+            # return Response(
+            #     {"detail": "Email не подтверждён. Сначала подтвердите почту."},
+            #     status=status.HTTP_400_BAD_REQUEST
+            # )
+            return generic_response
+ 
+        # Удаляем старые токены пользователя
+        PasswordResetToken.objects.filter(user=user).delete()
+        token_obj = PasswordResetToken.objects.create(user=user)
+ 
+        reset_url = f"{django_settings.FRONTEND_URL}/reset-password?token={token_obj.token}"
+ 
+        try:
+            send_mail(
+                subject="Сброс пароля — AVStore",
+                message=(
+                    f"Привет, {user.username}!\n\n"
+                    f"Для сброса пароля перейдите по ссылке:\n{reset_url}\n\n"
+                    f"Ссылка действительна 15 минут.\n"
+                    f"Если вы не запрашивали сброс — просто проигнорируйте это письмо."
+                ),
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            print(f"[EMAIL] ✅ Письмо сброса пароля отправлено на {email}")
+        except Exception as e:
+            print(f"[EMAIL] ❌ ОШИБКА отправки письма сброса пароля: {e}")
+ 
+        return generic_response
+ 
+ 
+class PasswordResetConfirmView(APIView):
+    permission_classes = [AllowAny]
+ 
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+ 
+        token_value  = serializer.validated_data['token']
+        new_password = serializer.validated_data['new_password']
+ 
+        try:
+            token_obj = PasswordResetToken.objects.select_related('user').get(token=token_value)
+        except PasswordResetToken.DoesNotExist:
+            return Response({"detail": "Неверный токен."}, status=status.HTTP_400_BAD_REQUEST)
+ 
+        if not token_obj.is_valid():
+            token_obj.delete()
+            return Response({"detail": "Ссылка устарела. Запросите новую."}, status=status.HTTP_400_BAD_REQUEST)
+ 
+        # Двойная проверка — на случай если email перестал быть верифицированным
+        if not token_obj.user.email_verified:
+            token_obj.delete()
+            return Response({"detail": "Email не подтверждён."}, status=status.HTTP_400_BAD_REQUEST)
+ 
+        user = token_obj.user
+        user.set_password(new_password)
+        user.save()
+        token_obj.delete()  # одноразовый
+ 
+        return Response({"detail": "Пароль успешно изменён."})
